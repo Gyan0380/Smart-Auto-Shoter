@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "smartautosorter",
+  "version": "${version}",
+  "name": "Smart Auto Sorter",
+  "description": "Automatic, profile-based inventory sorting with PvP/Survival/Mining/Building layouts, a custom layout editor, and share codes.",
+  "authors": ["Gyan"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/smartautosorter/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "main": ["com.gyan.smartautosorter.SmartAutoSorterMod"],
+    "client": ["com.gyan.smartautosorter.client.SmartAutoSorterClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "26.2",
+    "fabric-api": "*",
+    "java": ">=25"
+  }
+}

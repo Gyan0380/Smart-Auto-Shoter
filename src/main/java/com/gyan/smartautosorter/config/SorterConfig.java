@@ -34,6 +34,8 @@ public final class SorterConfig {
     public static final int MAX_CUSTOM_LAYOUTS = 20;
 
     public boolean masterAutoSortEnabled = true;
+    /** Show category labels while editing layouts. */
+    public boolean showCategoryOverlay = true;
     public String activeLayoutId = DefaultLayouts.SURVIVAL_ID;
     public boolean applyLayoutImmediatelyOnSwitch = true;
     public int toggleKeyCode = 79; // GLFW 'O'

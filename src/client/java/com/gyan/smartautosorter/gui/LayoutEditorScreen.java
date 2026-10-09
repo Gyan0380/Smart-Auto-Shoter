@@ -121,7 +121,7 @@ public final class LayoutEditorScreen extends Screen {
         try { id = Identifier.parse(itemId); }
         catch (IllegalArgumentException ex) { return ItemStack.EMPTY; }
         var item = BuiltInRegistries.ITEM.get(id);
-        return new ItemStack(item);
+        return item.map(ItemStack::new).orElse(ItemStack.EMPTY);
     }
 
     private static String shortName(String itemId) {

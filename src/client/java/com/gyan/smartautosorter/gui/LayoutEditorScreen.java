@@ -21,8 +21,7 @@ public final class LayoutEditorScreen extends Screen {
     private final Screen parent;
     private final Layout layout;
     private EditBox nameBox;
-    private EditBox itemIdBox;
-    private String selectedItemId;
+    private String selectedCategory = "BLOCKS";
     private int gridLeft, gridTop;
 
     public LayoutEditorScreen(Screen parent, Layout layout) {
@@ -65,58 +64,35 @@ public final class LayoutEditorScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Back"), b -> onClose())
                 .bounds(this.width / 2 + 85, this.height - 32, 75, 20).build());
 
-        itemIdBox = new EditBox(this.font, this.width / 2 - 150, 45, 235, 20,
-                Component.literal("Item ID, e.g. minecraft:stone"));
-        itemIdBox.setHint(Component.literal("minecraft:stone"));
-        itemIdBox.setMaxLength(128);
-        addRenderableWidget(itemIdBox);
-        addRenderableWidget(Button.builder(Component.literal("Select item"), b -> {
-            String raw = itemIdBox.getValue().trim();
-            try {
-                Identifier parsed = Identifier.parse(raw);
-                if (BuiltInRegistries.ITEM.containsKey(parsed)) {
-                    selectedItemId = parsed.toString();
-                } else {
-                    selectedItemId = null;
-                }
-            } catch (IllegalArgumentException ex) {
-                selectedItemId = null;
-            }
-        }).bounds(this.width / 2 + 90, 45, 70, 20).build());
-
-        List<ItemRule> rules = layout.allRules();
-        int pickY = 70;
-        for (int i = 0; i < rules.size() && i < 9; i++) {
-            final String itemId = rules.get(i).itemId();
-            addRenderableWidget(Button.builder(Component.literal(shortName(itemId)), b -> {
-                selectedItemId = itemId;
-                itemIdBox.setValue(itemId);
-            }).bounds(this.width / 2 - 135 + i * 30, pickY, 28, 20).build());
-        }
+        addRenderableWidget(Button.builder(Component.literal("Category: " + selectedCategory + "  (click to change)"), b -> {
+            String[] categories = {"BLOCKS", "TOOLS", "WEAPONS", "FOOD", "OTHER"};
+            int current = java.util.Arrays.asList(categories).indexOf(selectedCategory);
+            selectedCategory = categories[(current + 1) % categories.length];
+            b.setMessage(Component.literal("Category: " + selectedCategory + "  (click to change)"));
+        }).bounds(this.width / 2 - 100, 48, 200, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Clear slot assignment"), b -> {
+            // Clear all category assignments from the slot currently under the mouse is not possible via a button;
+            // right-clicking a slot below clears that slot.
+        }).bounds(this.width / 2 - 100, 72, 200, 20).build());
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
         graphics.centeredText(this.font, this.title, this.width / 2, 8, 0xFFFFFFFF);
-        if (selectedItemId != null) {
-            graphics.text(this.font, "Selected: " + shortName(selectedItemId) + " — click a slot to assign",
-                    gridLeft, gridTop - 12, 0xFFFFFF55, true);
-        } else {
-            graphics.text(this.font, "Enter an item ID above, select it, then click a slot",
-                    gridLeft, gridTop - 12, 0xFFFFFFFF, true);
-        }
+        graphics.text(this.font, "Category " + selectedCategory + ": click slots to assign; right-click to clear",
+                gridLeft - 20, gridTop - 12, 0xFFFFFF55, true);
         for (int slot = 0; slot < 36; slot++) {
             int col = slot % COLS;
             int row = slot / COLS;
             int x = gridLeft + col * SLOT_SIZE;
             int y = gridTop + row * SLOT_SIZE + (row == 3 ? 6 : 0);
-            ItemRule occupant = ruleForSlot(slot);
-            int tint = occupant == null ? 0xFF8B8B8B : categoryColor(occupant.itemId());
+            String assigned = categoryForSlot(slot);
+            int tint = assigned == null ? 0xFF555555 : categoryColor(assigned);
             graphics.fill(x, y, x + SLOT_SIZE, y + SLOT_SIZE, tint);
             graphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, 0x558B8B8B);
-            if (occupant != null) graphics.fakeItem(stackFor(occupant.itemId()), x + 1, y + 1);
             graphics.text(this.font, Integer.toString(slot + 1), x + 1, y + 1, 0xFFFFFFFF, true);
+            if (assigned != null) graphics.text(this.font, assigned.substring(0, 1), x + 6, y + 7, 0xFFFFFFFF, true);
         }
     }
 
@@ -124,19 +100,25 @@ public final class LayoutEditorScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         double mouseX = event.x();
         double mouseY = event.y();
-        if (selectedItemId != null) {
-            for (int slot = 0; slot < 36; slot++) {
+        for (int slot = 0; slot < 36; slot++) {
                 int col = slot % COLS;
                 int row = slot / COLS;
                 int x = gridLeft + col * SLOT_SIZE;
                 int y = gridTop + row * SLOT_SIZE + (row == 3 ? 6 : 0);
                 if (mouseX >= x && mouseX < x + SLOT_SIZE && mouseY >= y && mouseY < y + SLOT_SIZE) {
-                    layout.putRule(new ItemRule(selectedItemId, slot, 0, false));
+                    if (event.button() == 1) layout.unassignCategorySlot(slot);
+                    else layout.assignCategorySlot(selectedCategory, slot);
+                    SmartAutoSorterClient.saveConfig();
                     return true;
                 }
             }
-        }
         return super.mouseClicked(event, doubleClick);
+    }
+
+    private String categoryForSlot(int slot) {
+        for (var entry : layout.categorySlots().entrySet()) if (entry.getValue().contains(slot)) return entry.getKey();
+        ItemRule rule = ruleForSlot(slot);
+        return rule == null ? null : Layout.categoryForItem(rule.itemId());
     }
 
     private ItemRule ruleForSlot(int slot) {
@@ -152,8 +134,8 @@ public final class LayoutEditorScreen extends Screen {
         return item.map(ItemStack::new).orElse(ItemStack.EMPTY);
     }
 
-    private static int categoryColor(String itemId) {
-        String id = itemId.toLowerCase(java.util.Locale.ROOT);
+    private static int categoryColor(String category) {
+        String id = category.toLowerCase(java.util.Locale.ROOT);
         if (id.contains("sword") || id.contains("bow") || id.contains("shield") || id.contains("trident")) return 0xFFE05A5A;
         if (id.contains("pickaxe") || id.contains("axe") || id.contains("shovel") || id.contains("hoe")) return 0xFF4E91D9;
         if (id.contains("bread") || id.contains("beef") || id.contains("porkchop") || id.contains("apple")

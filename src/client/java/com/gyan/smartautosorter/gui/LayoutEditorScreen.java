@@ -135,14 +135,14 @@ public final class LayoutEditorScreen extends Screen {
     }
 
     private static int categoryColor(String category) {
-        String id = category.toLowerCase(java.util.Locale.ROOT);
-        if (id.contains("sword") || id.contains("bow") || id.contains("shield") || id.contains("trident")) return 0xFFE05A5A;
-        if (id.contains("pickaxe") || id.contains("axe") || id.contains("shovel") || id.contains("hoe")) return 0xFF4E91D9;
-        if (id.contains("bread") || id.contains("beef") || id.contains("porkchop") || id.contains("apple")
-                || id.contains("carrot") || id.contains("potato") || id.contains("stew") || id.contains("fish")) return 0xFFE5B24C;
-        if (id.contains("stone") || id.contains("dirt") || id.contains("planks") || id.contains("brick")
-                || id.contains("glass") || id.contains("cobblestone") || id.contains("sand")) return 0xFF4B9A61;
-        return 0xFF8B70B5;
+        return switch (category.toUpperCase(java.util.Locale.ROOT)) {
+            case "BLOCKS" -> 0xFF4B9A61;
+            case "TOOLS" -> 0xFF4E91D9;
+            case "WEAPONS" -> 0xFFE05A5A;
+            case "FOOD" -> 0xFFE5B24C;
+            case "OTHER" -> 0xFF8B70B5;
+            default -> 0xFF555555;
+        };
     }
 
     private static String shortName(String itemId) {

@@ -36,10 +36,9 @@ public final class SortEngine {
 
         Set<Integer> reservedSlots = new HashSet<>();
         for (ItemRule r : layout.allRules()) {
-            if (r.preferredSlot() >= 0 && r.preferredSlot() < n) {
-                reservedSlots.add(r.preferredSlot());
-            }
+            if (r.preferredSlot() >= 0 && r.preferredSlot() < n) reservedSlots.add(r.preferredSlot());
         }
+        layout.categorySlots().values().forEach(slots -> slots.stream().filter(slot -> slot >= 0 && slot < n).forEach(reservedSlots::add));
 
         for (int slot = 0; slot < n; slot++) {
             if (settled[slot]) continue;
@@ -48,7 +47,25 @@ public final class SortEngine {
             if (inv.isLocked(slot)) continue; // rule #7
 
             ItemRule rule = layout.ruleFor(stack.itemId());
-            if (rule == null) continue; // rule #: don't hardcode destinations for unconfigured items
+            if (rule == null) {
+                List<Integer> categorySlots = layout.categorySlots().get(Layout.categoryForItem(stack.itemId()));
+                if (categorySlots == null || categorySlots.isEmpty()) continue;
+                int targetSlot = -1;
+                for (int candidate : categorySlots) {
+                    if (candidate < 0 || candidate >= n || candidate == slot || inv.isLocked(candidate) || settled[candidate]) continue;
+                    ItemStackLite target = inv.get(candidate);
+                    if (target.sameItem(stack) && target.remainingCapacity() > 0) { targetSlot = candidate; break; }
+                    if (target.isEmpty() && targetSlot < 0) targetSlot = candidate;
+                }
+                if (targetSlot >= 0) {
+                    ItemStackLite target = inv.get(targetSlot);
+                    if (target.isEmpty()) moveWhole(inv, slot, targetSlot, stack, moves);
+                    else mergeInto(inv, slot, targetSlot, stack, target, moves);
+                    settled[targetSlot] = true;
+                    if (inv.get(slot).isEmpty()) settled[slot] = true;
+                }
+                continue;
+            }
 
             int preferred = rule.preferredSlot();
             if (preferred == slot) continue; // rule #1/#2: already home

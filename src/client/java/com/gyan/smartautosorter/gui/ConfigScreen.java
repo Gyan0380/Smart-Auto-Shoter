@@ -59,6 +59,14 @@ public final class ConfigScreen extends Screen {
                             SmartAutoSorterClient.saveConfig();
                         }));
 
+        addRenderableWidget(CycleButton.onOffBuilder(cfg.showCategoryOverlay)
+                .create(centerX - 100, nextRow(rowHeight), 200, 20,
+                        Component.translatable("smartautosorter.gui.category_overlay"),
+                        (button, value) -> {
+                            cfg.showCategoryOverlay = value;
+                            SmartAutoSorterClient.saveConfig();
+                        }));
+
         addProfileButton(centerX - 100, nextRow(rowHeight), com.gyan.smartautosorter.config.DefaultLayouts.PVP_ID, "smartautosorter.gui.profile.pvp");
         addProfileButton(centerX - 100, nextRow(rowHeight), com.gyan.smartautosorter.config.DefaultLayouts.SURVIVAL_ID, "smartautosorter.gui.profile.survival");
         addProfileButton(centerX - 100, nextRow(rowHeight), com.gyan.smartautosorter.config.DefaultLayouts.MINING_ID, "smartautosorter.gui.profile.mining");

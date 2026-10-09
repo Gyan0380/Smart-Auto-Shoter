@@ -88,7 +88,7 @@ public final class SmartAutoSorterClient implements ClientModInitializer {
 
     public static void applyLayoutNow() {
         Minecraft client = Minecraft.getInstance();
-        if (client.player != null) {
+        if (client.player != null && client.player.containerMenu == client.player.inventoryMenu) {
             cooldown = 0;
             runSortPass(client.player);
         }

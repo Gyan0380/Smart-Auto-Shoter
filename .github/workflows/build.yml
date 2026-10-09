@@ -28,7 +28,7 @@ jobs:
           gradle-version: '9.7.0'
 
       - name: Build mod
-        run: gradle --no-daemon clean build
+        run: gradle --no-daemon clean assemble
 
       - name: Upload build outputs
         if: always()

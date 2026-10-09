@@ -4,6 +4,7 @@
   "key.category.smartautosorter": "Smart Auto Sorter",
   "smartautosorter.gui.title": "Smart Auto Sorter",
   "smartautosorter.gui.master_toggle": "Auto Sort",
+  "smartautosorter.gui.category_overlay": "Category Overlay",
   "smartautosorter.gui.profile.pvp": "PvP",
   "smartautosorter.gui.profile.survival": "Survival",
   "smartautosorter.gui.profile.mining": "Mining",

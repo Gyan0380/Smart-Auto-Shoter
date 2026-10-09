@@ -44,7 +44,16 @@ final class MoveApplier {
                 player.inventoryMenu.containerId, slot, button, ContainerInput.PICKUP, player);
     }
 
+    /**
+     * InventoryView indices are 0-8 for the hotbar and 9-35 for the main
+     * inventory. InventoryMenu uses slots 36-44 for the hotbar, while main
+     * inventory slots keep indices 9-35. Passing hotbar indices through
+     * unchanged would click the crafting/armor slots instead of the hotbar.
+     */
     private static int toMenuSlot(int sortableSlot) {
-        return sortableSlot;
+        if (sortableSlot < 0 || sortableSlot >= PlayerInventoryView.SORTABLE_SIZE) {
+            throw new IllegalArgumentException("Invalid sortable inventory slot: " + sortableSlot);
+        }
+        return sortableSlot < 9 ? sortableSlot + 36 : sortableSlot;
     }
 }

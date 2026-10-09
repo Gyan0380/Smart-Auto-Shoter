@@ -19,7 +19,7 @@ public final class Layout {
     /** itemId -> rule. LinkedHashMap keeps insertion/display order stable for the editor UI. */
     private final Map<String, ItemRule> rules = new LinkedHashMap<>();
     /** Category name -> ordered inventory slots assigned by the player. */
-    private final Map<String, List<Integer>> categorySlots = new LinkedHashMap<>();
+    private Map<String, List<Integer>> categorySlots = new LinkedHashMap<>();
     private boolean builtIn;
 
     public Layout(String id, String name, String colorHex) {
@@ -37,7 +37,7 @@ public final class Layout {
         Layout copy = new Layout(UUID.randomUUID().toString(), newName, this.colorHex);
         copy.manualPlacementPolicy = this.manualPlacementPolicy;
         copy.rules.putAll(this.rules);
-        this.categorySlots.forEach((category, slots) -> copy.categorySlots.put(category, new ArrayList<>(slots)));
+        categorySlots().forEach((category, slots) -> copy.categorySlots.put(category, new ArrayList<>(slots)));
         copy.builtIn = false;
         return copy;
     }
@@ -95,18 +95,21 @@ public final class Layout {
     }
 
     public Map<String, List<Integer>> categorySlots() {
+        // Gson may deserialize older config files without this newly added field.
+        // Lazily initialize it so existing worlds/configs don't crash on first sort tick.
+        if (categorySlots == null) categorySlots = new LinkedHashMap<>();
         return categorySlots;
     }
 
     public void assignCategorySlot(String category, int slot) {
         if (slot < 0 || slot >= 36) return;
-        categorySlots.values().forEach(slots -> slots.remove(Integer.valueOf(slot)));
-        List<Integer> slots = categorySlots.computeIfAbsent(category, key -> new ArrayList<>());
+        categorySlots().values().forEach(slots -> slots.remove(Integer.valueOf(slot)));
+        List<Integer> slots = categorySlots().computeIfAbsent(category, key -> new ArrayList<>());
         if (!slots.contains(slot)) slots.add(slot);
     }
 
     public void unassignCategorySlot(int slot) {
-        categorySlots.values().forEach(slots -> slots.remove(Integer.valueOf(slot)));
+        categorySlots().values().forEach(slots -> slots.remove(Integer.valueOf(slot)));
     }
 
     public static String categoryForItem(String itemId) {

@@ -70,7 +70,7 @@ public final class ConfigScreen extends Screen {
             addRenderableWidget(Button.builder(Component.literal(custom.name()), b -> selectLayout(custom.id()))
                     .bounds(centerX - 100, y, 150, 20).build());
             addRenderableWidget(Button.builder(Component.literal("..."), b ->
-                    minecraft.setScreen(new LayoutEditorScreen(this, custom)))
+                    minecraft.gui.setScreen(new LayoutEditorScreen(this, custom)))
                     .bounds(centerX + 54, y, 46, 20).build());
             y += rowHeight;
         }
@@ -81,12 +81,12 @@ public final class ConfigScreen extends Screen {
                 Layout fresh = Layout.newCustom("New Layout", "#9E9E9E");
                 cfg.layouts.add(fresh);
                 SmartAutoSorterClient.saveConfig();
-                minecraft.setScreen(new LayoutEditorScreen(this, fresh));
+                minecraft.gui.setScreen(new LayoutEditorScreen(this, fresh));
             }
         }).bounds(centerX - 100, nextRow(rowHeight), 200, 20).build());
 
         addRenderableWidget(Button.builder(Component.translatable("smartautosorter.gui.import"), b ->
-                minecraft.setScreen(new ImportShareCodeScreen(this)))
+                minecraft.gui.setScreen(new ImportShareCodeScreen(this)))
                 .bounds(centerX - 100, nextRow(rowHeight), 95, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("smartautosorter.gui.export"), b -> {
             Layout active = cfg.activeLayout();

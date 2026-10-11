@@ -13,7 +13,7 @@ service cloud.firestore {
     match /layouts/{layoutId} {
       allow get: if (resource.data.visibility == 'public')
         || (signedIn() && resource.data.ownerUid == request.auth.uid)
-        || (resource.data.visibility == 'unlisted' && resource.data.shareToken == layoutId);
+        || (resource.data.visibility == 'unlisted');
       allow list: if resource.data.visibility == 'public'
         || (signedIn() && resource.data.ownerUid == request.auth.uid);
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid

@@ -6,7 +6,8 @@ import { auth, db, firebaseConfigured } from "@/lib/firebase";
 
 type Visibility = "public" | "private" | "unlisted";
 type LayoutData = { version: 1; mode: "hybrid" | "category" | "pvp"; categorySlots: Record<string, number[]>; itemRules: Array<{itemId:string;slot:number;priority:number;lockOnPlace:boolean}>; color: string };
-type LayoutDoc = { id:string; ownerUid:string; title:string; description:string; tags?:string[]; visibility:Visibility; layoutData:LayoutData; shareToken:string; createdAt?:unknown; updatedAt?:unknown };\nconst presetTags = ["Survival","Hardcore","PvP","Crystal PvP","Sword PvP","Axe PvP","SMP","Anarchy","BedWars","SkyWars","UHC","Kit PvP","Parkour","Building","Mining","Speedrun","Beginner","Advanced","Minimal","Organized","Hotbar","Early Game","Late Game","Multiplayer","Singleplayer","Java Edition","Bedrock Edition","Combat","Exploration","Redstone"];
+type LayoutDoc = { id:string; ownerUid:string; title:string; description:string; tags?:string[]; visibility:Visibility; layoutData:LayoutData; shareToken:string; createdAt?:unknown; updatedAt?:unknown };
+const presetTags = ["Survival","Hardcore","PvP","Crystal PvP","Sword PvP","Axe PvP","SMP","Anarchy","BedWars","SkyWars","UHC","Kit PvP","Parkour","Building","Mining","Speedrun","Beginner","Advanced","Minimal","Organized","Hotbar","Early Game","Late Game","Multiplayer","Singleplayer","Java Edition","Bedrock Edition","Combat","Exploration","Redstone"];
 const categories = ["BLOCKS","TOOLS","WEAPONS","FOOD","OTHER"];
 const blankData = ():LayoutData => ({version:1,mode:"hybrid",categorySlots:{},itemRules:[],color:"#7c5cff"});
 const token = () => { const bytes = crypto.getRandomValues(new Uint8Array(18)); return Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join(""); };

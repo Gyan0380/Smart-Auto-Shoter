@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function ownsExisting() { return signedIn() && resource.data.ownerUid == request.auth.uid; }
+    function validLayout(data) {
+      return data.keys().hasAll(['ownerUid','title','description','visibility','layoutData','createdAt','updatedAt'])
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 80
+        && data.description is string && data.description.size() <= 1000
+        && data.visibility in ['public','private','unlisted']
+        && data.layoutData is map;
+    }
+    match /layouts/{layoutId} {
+      allow get: if (resource.data.visibility == 'public')
+        || (signedIn() && resource.data.ownerUid == request.auth.uid)
+        || (resource.data.visibility == 'unlisted' && resource.data.shareToken == layoutId);
+      allow list: if resource.data.visibility == 'public'
+        || (signedIn() && resource.data.ownerUid == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid
+        && validLayout(request.resource.data)
+        && request.resource.data.shareToken is string
+        && request.resource.data.shareToken.size() >= 20;
+      allow update: if ownsExisting()
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && validLayout(request.resource.data);
+      allow delete: if ownsExisting();
+    }
+  }
+}

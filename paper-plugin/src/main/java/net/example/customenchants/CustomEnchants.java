@@ -188,6 +188,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         e.setCancelled(true);
         if(!(e.getWhoClicked() instanceof Player p) || !p.hasPermission("customenchants.admin")) return;
         int slot=e.getRawSlot();
+        if(slot<0 || slot>=e.getView().getTopInventory().getSize()) return;
         if(slot==21) getConfig().set("shop.enabled",!getConfig().getBoolean("shop.enabled",true));
         else if(slot==23) getConfig().set("tpa.enabled",!getConfig().getBoolean("tpa.enabled",true));
         else if(slot==26) { p.closeInventory(); return; }

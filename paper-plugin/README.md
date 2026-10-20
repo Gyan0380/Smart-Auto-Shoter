@@ -1,46 +1,39 @@
-# CustomEnchants
+# CustomEnchants 2.0.0
 
-A standalone Paper plugin with exactly three XP-level shop books:
+A Paper plugin with exactly three custom enchant books, an XP shop, an admin menu, and optional TPA commands.
 
 | Book | Tool | Effect | Default price |
 |---|---|---|---:|
-| Lumberjack | Axe | Breaks connected logs; nearby leaves are broken and their drops go directly into the player's inventory | 10 levels |
+| Lumberjack | Axe | Breaks connected logs; nearby leaves break and their drops go directly into inventory | 10 levels |
 | Vein Miner | Pickaxe | Breaks connected blocks of the same ore type | 20 levels |
-| 3x3 Miner | Pickaxe | Breaks the 3x3 plane around the targeted block, oriented by the player's facing direction | 30 levels |
+| 3x3 Miner | Pickaxe | Breaks a 3×3 plane perpendicular to the direction you're aiming; looking up or down clears a horizontal plane | 30 levels |
 
-Sneak while breaking a block to suspend its custom enchant effect for that block. Each additional block broken wears the tool once (with the tool's Unbreaking chance applied); leaves collected by Lumberjack do not wear the axe. Applying any book costs 2 XP levels. Put the book on your cursor and click a compatible tool in your inventory, or use an anvil. The inventory method works as the Geyser/Floodgate-friendly fallback if the Bedrock client does not show an anvil result. The custom effects are server-side.
+Sneak while mining to temporarily disable the enchant. Extra blocks each consume one durability point, with Unbreaking applied; Lumberjack leaves don't consume durability. Applying a book costs 2 XP levels. Apply by placing the book on the cursor and clicking a compatible tool in inventory, with an anvil, or using `/enchantshop apply <enchant>`.
 
-## Build
+## Commands
 
-Requirements: JDK 25 and Gradle 8.14 or later. From this directory, run:
+- `/enchantshop` or `/eshop` opens the shop.
+- `/enchantshop give <player> <lumberjack|veinminer|3x3miner>` gives a book (admin).
+- `/enchantadmin` opens the settings GUI (admin). Click a book to show/hide it, use +/- to change price; Shift-click changes price by 10. Toggle the shop and this plugin's TPA commands from the same menu.
+- `/tpa <player>` requests to teleport to a player.
+- `/tpahere <player>` requests a player to teleport to you. `/tpahear` is also accepted.
+- `/tpaccept [player]`, `/tpadeny [player]`, `/tpacancel`; `/tpacancle` is an accepted spelling alias.
 
-```text
-gradle build
-```
+TPA acceptance starts a warmup (default 5 seconds), and successful teleport starts a cooldown (default 5 seconds). Movement cancels the warmup by default. The destination player is notified and both players hear a configurable teleport sound. If another plugin already owns a TPA alias, Paper leaves that alias with the other plugin. The admin toggle disables this plugin's TPA feature; it does not toggle or change other plugins.
 
-The JAR will be at `build/libs/CustomEnchants-1.1.0.jar`. Paper's repository provides the 26.3 API dependency. The dependency is compile-only and is not bundled into the plugin.
+## Configuration
 
-## Install
+The plugin creates `plugins/CustomEnchants/config.yml`. Change `prices.*`, `shop.enabled`, `shop.items.*.enabled`, and `tpa.*` there. TPA settings include request timeout, warmup, cooldown, cancel-on-move, and sound. `/enchantadmin` saves price and visibility changes immediately. Existing server configuration is not needed or modified by this plugin.
 
-1. Make sure the server is Paper 26.3 and runs on Java 25.
-2. Copy `CustomEnchants-1.1.0.jar` into the server's `plugins` directory.
-3. Restart the server. The plugin creates its own `plugins/CustomEnchants/config.yml` on first start.
-4. Players can use `/enchantshop` to purchase a book. Hold the book on the cursor and click a compatible tool in the inventory to apply it for 2 XP levels; a Java player can also combine them in an anvil for 2 levels. `/enchantshop apply <enchant>` remains available as a command alternative and costs the same 2 levels.
-5. Operators can grant a book with `/enchantshop give <online-player> <lumberjack|veinminer|3x3miner>`.
+## Build and install
 
-No existing server files or configuration need to be changed. Back up the server before installing any plugin, as with any server change.
+Requires JDK 25 and Gradle 8.14 or later. Run `gradle build`; the JAR is `build/libs/CustomEnchants-2.0.0.jar`. Install that JAR in the server's `plugins` directory and restart Paper 26.3 on Java 25.
 
-## Permissions and configuration
+## Permissions and compatibility
 
-- `customenchants.shop` (default: everyone): open and purchase from the shop.
-- `customenchants.use` (default: everyone): apply and trigger enchantments.
-- `customenchants.admin` (default: operators): use the give command.
-- Prices and operation caps are in the plugin's own `config.yml`. Default caps are 128 logs and 64 ores per activation.
+- `customenchants.shop` and `customenchants.use` default to everyone.
+- `customenchants.admin` defaults to operators.
+- `customenchants.tpa` defaults to everyone.
 
-## Compatibility notes
+Geyser/Floodgate are optional; enchant behavior is server-side. Paper 26.3 is the target, not Spigot. Additional blocks fire `BlockBreakEvent` for protection plugins, but do not individually award XP or run every vanilla block-break effect. Test on a staging server before production use; live server behavior has not been independently tested.
 
-- Build and target are configured for Paper 26.3 and Java 25. This is not a Spigot build target.
-- Geyser/Floodgate are optional. This plugin does not add custom client-side enchantment visuals; the book is identified by server-side item data and lore. It does not rely on anvil combination, which Bedrock clients may reject for custom enchantments.
-- Breaking extra blocks dispatches `BlockBreakEvent` so protection plugins can cancel those blocks. Extra-block drops are generated by the server API, and each extra mined block applies one durability use with Unbreaking taken into account. Extra blocks do not grant XP or individually run every vanilla block-break side effect.
-- Lumberjack collects leaves found within the configured radius of connected logs. Leaf drops follow the block's normal drop rules; leaves are inserted into inventory when possible, with overflow dropped at the block.
-- GitHub Actions successfully built this project with Java 25 against the Paper 26.3 API. The plugin has not yet been tested on a live Paper server; verify its behavior on a test server before using it in a production world.

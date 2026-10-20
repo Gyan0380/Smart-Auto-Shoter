@@ -1,4 +1,4 @@
-# CustomEnchants 2.1.0
+# CustomEnchants 1.0.0
 
 A Paper plugin with exactly three custom enchant books, an XP shop, an admin menu, and optional TPA commands.
 
@@ -29,7 +29,7 @@ The plugin creates `plugins/CustomEnchants/config.yml`. Settings include `prices
 
 ## Build and install
 
-Requires JDK 25 and Gradle 8.14 or later. Run `gradle build`; the JAR is `build/libs/CustomEnchants-2.1.0.jar`. Install the JAR in the server's `plugins` directory and restart Paper 26.3 on Java 25.
+Requires JDK 25 and Gradle 8.14 or later. Run `gradle build`; the JAR is `build/libs/CustomEnchants-1.0.0.jar`. Install the JAR in the server's `plugins` directory and restart Paper 26.3 on Java 25.
 
 ## Permissions and compatibility
 

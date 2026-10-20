@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "net.example.customenchants"
-version = "1.1.0"
+version = "2.0.0"
 
 repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
@@ -25,3 +25,4 @@ tasks.withType<JavaCompile>().configureEach {
 tasks.jar {
     archiveBaseName.set("CustomEnchants")
 }
+

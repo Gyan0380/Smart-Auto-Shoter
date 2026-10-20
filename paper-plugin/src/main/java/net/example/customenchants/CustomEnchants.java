@@ -45,7 +45,6 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class CustomEnchants extends JavaPlugin implements Listener {
     private static final String SHOP_TITLE = "Custom Enchant Shop";
     private static final String ADMIN_TITLE = "Enchant Admin Settings";
-    private static final int APPLY_COST = 2;
     private NamespacedKey bookKey;
     private NamespacedKey toolKey;
     private final Set<UUID> processing = new HashSet<>();
@@ -88,7 +87,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         ItemStack item = new ItemStack(Material.ENCHANTED_BOOK);
         ItemMeta meta = item.getItemMeta();
         meta.setDisplayName("§d"+type.label+" Book");
-        meta.setLore(List.of("§7Place this book on a compatible tool", "§7in your inventory or an anvil.", "§7Application cost: §e"+APPLY_COST+" XP levels"));
+        meta.setLore(List.of("§7Place this book on a compatible tool", "§7in your inventory or an anvil.", "§7Application cost rises per enchant already applied."));
         meta.getPersistentDataContainer().set(bookKey, PersistentDataType.STRING, type.id);
         meta.addEnchant(Enchantment.UNBREAKING, 1, true);
         item.setItemMeta(meta);
@@ -99,11 +98,17 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         String id=item.getItemMeta().getPersistentDataContainer().get(bookKey, PersistentDataType.STRING);
         return id == null ? null : EnchantType.parse(id);
     }
-    private EnchantType toolType(ItemStack item) {
-        if (item == null || !item.hasItemMeta()) return null;
-        String id=item.getItemMeta().getPersistentDataContainer().get(toolKey, PersistentDataType.STRING);
-        return id == null ? null : EnchantType.parse(id);
+    private Set<EnchantType> toolTypes(ItemStack item) {
+        Set<EnchantType> types=new HashSet<>();
+        if (item == null || !item.hasItemMeta()) return types;
+        String ids=item.getItemMeta().getPersistentDataContainer().get(toolKey, PersistentDataType.STRING);
+        if(ids!=null) for(String id:ids.split(",")) { EnchantType type=EnchantType.parse(id); if(type!=null) types.add(type); }
+        return types;
     }
+    private int applyBaseCost() { return Math.max(0,Math.min(100,getConfig().getInt("application.base-cost",2))); }
+    private int applyStepCost() { return Math.max(0,Math.min(100,getConfig().getInt("application.additional-cost",2))); }
+    private int maxCustomEnchants() { return Math.max(1,Math.min(3,getConfig().getInt("application.max-per-tool",3))); }
+    private int applyCost(ItemStack tool) { return applyBaseCost()+toolTypes(tool).size()*applyStepCost(); }
 
     @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("enchantadmin")) {
@@ -173,6 +178,15 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
                     "§fClick to toggle shop listing")));
             inv.setItem(row[2],adminItem(Material.EMERALD,"§a+1 XP level",List.of("§7Shift-click to change by 10")));
         }
+        inv.setItem(0,adminItem(Material.REDSTONE,"§cBase apply cost: -1",List.of("§7Shift-click changes by 5")));
+        inv.setItem(1,adminItem(Material.EXPERIENCE_BOTTLE,"§eBase apply cost: "+applyBaseCost()+" levels",List.of("§7First enchantment on a tool")));
+        inv.setItem(2,adminItem(Material.EMERALD,"§aBase apply cost: +1",List.of("§7Shift-click changes by 5")));
+        inv.setItem(3,adminItem(Material.REDSTONE,"§cAdded cost: -1",List.of("§7Per enchantment already on tool", "§7Shift-click changes by 5")));
+        inv.setItem(4,adminItem(Material.EXPERIENCE_BOTTLE,"§eAdded cost: "+applyStepCost()+" levels",List.of("§7Example: 2 base + 2 per existing enchant = 2, 4, 6")));
+        inv.setItem(5,adminItem(Material.EMERALD,"§aAdded cost: +1",List.of("§7Shift-click changes by 5")));
+        inv.setItem(6,adminItem(Material.REDSTONE,"§cMax enchants: -1",List.of("§7Minimum 1", "§7Shift-click changes by 2")));
+        inv.setItem(7,adminItem(Material.BOOK,"§eMax per tool: "+maxCustomEnchants(),List.of("§7Maximum 3")));
+        inv.setItem(8,adminItem(Material.EMERALD,"§aMax enchants: +1",List.of("§7Shift-click changes by 2")));
         inv.setItem(21,adminItem(Material.CHEST,"§eEnchant shop: "+(getConfig().getBoolean("shop.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to toggle")));
         inv.setItem(23,adminItem(Material.ENDER_PEARL,"§eTPA commands: "+(getConfig().getBoolean("tpa.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to toggle")));
         inv.setItem(26,adminItem(Material.BARRIER,"§cClose",List.of()));
@@ -189,7 +203,10 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         if(!(e.getWhoClicked() instanceof Player p) || !p.hasPermission("customenchants.admin")) return;
         int slot=e.getRawSlot();
         if(slot<0 || slot>=e.getView().getTopInventory().getSize()) return;
-        if(slot==21) getConfig().set("shop.enabled",!getConfig().getBoolean("shop.enabled",true));
+        if(slot==0 || slot==2) changeSetting("application.base-cost",applyBaseCost(),slot==0?-1:1,e.isShiftClick()?5:1,0,100);
+        else if(slot==3 || slot==5) changeSetting("application.additional-cost",applyStepCost(),slot==3?-1:1,e.isShiftClick()?5:1,0,100);
+        else if(slot==6 || slot==8) changeSetting("application.max-per-tool",maxCustomEnchants(),slot==6?-1:1,e.isShiftClick()?2:1,1,3);
+        else if(slot==21) getConfig().set("shop.enabled",!getConfig().getBoolean("shop.enabled",true));
         else if(slot==23) getConfig().set("tpa.enabled",!getConfig().getBoolean("tpa.enabled",true));
         else if(slot==26) { p.closeInventory(); return; }
         else {
@@ -208,6 +225,9 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             }
         }
         saveConfig(); openAdmin(p);
+    }
+    private void changeSetting(String path,int current,int direction,int amount,int min,int max) {
+        getConfig().set(path,Math.max(min,Math.min(max,current+direction*amount)));
     }
 
     private BasicCommand tpaCommand(String action) {
@@ -355,22 +375,23 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         if (type==null || tool==null || tool.getType().isAir()) return;
         e.setCancelled(true);
         if (!canApply(p,tool,type)) return;
+        int cost=applyCost(tool);
         applyToTool(tool,type);
-        p.setLevel(p.getLevel()-APPLY_COST);
+        p.setLevel(p.getLevel()-cost);
         ItemStack cursor=e.getCursor(); cursor.setAmount(cursor.getAmount()-1);
         e.setCursor(cursor.getAmount()<=0?null:cursor);
-        p.sendMessage("§aApplied "+type.label+" for "+APPLY_COST+" XP levels.");
+        p.sendMessage("§aApplied "+type.label+" for "+cost+" XP levels.");
     }
 
     @EventHandler public void onPrepareAnvil(PrepareAnvilEvent e) {
         AnvilInventory inv=e.getInventory();
         EnchantType type=bookType(inv.getItem(1));
         ItemStack tool=inv.getItem(0);
-        if (type==null || !isCompatibleTool(tool,type) || toolType(tool)!=null) return;
+        if (type==null || !canApplyToTool(tool,type)) return;
         ItemStack result=tool.clone();
         applyToTool(result,type);
         e.setResult(result);
-        inv.setRepairCost(APPLY_COST);
+        inv.setRepairCost(applyCost(tool));
     }
 
     @EventHandler public void onAnvilResult(InventoryClickEvent e) {
@@ -378,15 +399,16 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
                 || !(e.getWhoClicked() instanceof Player p)) return;
         EnchantType type=bookType(anvil.getItem(1));
         ItemStack tool=anvil.getItem(0);
-        if (type==null || !isCompatibleTool(tool,type) || toolType(tool)!=null) return;
+        if (type==null || !canApplyToTool(tool,type)) return;
         e.setCancelled(true);
         if (!p.hasPermission("customenchants.use")) { p.sendMessage("§cYou don't have permission."); return; }
-        if (p.getLevel()<APPLY_COST) { p.sendMessage("§cYou need "+APPLY_COST+" XP levels to apply this book."); return; }
+        int cost=applyCost(tool);
+        if (p.getLevel()<cost) { p.sendMessage("§cYou need "+cost+" XP levels to apply this book."); return; }
         ItemStack result=tool.clone(); applyToTool(result,type);
-        p.setLevel(p.getLevel()-APPLY_COST);
+        p.setLevel(p.getLevel()-cost);
         anvil.setItem(0,null); anvil.setItem(1,null); anvil.setRepairCost(0);
         e.setCursor(result);
-        p.sendMessage("§aApplied "+type.label+" for "+APPLY_COST+" XP levels.");
+        p.sendMessage("§aApplied "+type.label+" for "+cost+" XP levels.");
     }
 
     private void applyBook(Player p, EnchantType type) {
@@ -396,38 +418,52 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         for (int i=0;i<p.getInventory().getSize();i++) if (type==bookType(p.getInventory().getItem(i))) {found=p.getInventory().getItem(i);slot=i;break;}
         if (found==null) { p.sendMessage("§cYou need that enchantment book in your inventory."); return; }
         if (!canApply(p,tool,type)) return;
+        int cost=applyCost(tool);
         applyToTool(tool,type);
-        p.setLevel(p.getLevel()-APPLY_COST);
+        p.setLevel(p.getLevel()-cost);
         found.setAmount(found.getAmount()-1); if (found.getAmount()<=0) p.getInventory().setItem(slot,null);
-        p.sendMessage("§aApplied "+type.label+" for "+APPLY_COST+" XP levels.");
+        p.sendMessage("§aApplied "+type.label+" for "+cost+" XP levels.");
     }
     private boolean canApply(Player p, ItemStack tool, EnchantType type) {
         if (!p.hasPermission("customenchants.use")) { p.sendMessage("§cYou don't have permission."); return false; }
         if (!isCompatibleTool(tool,type)) { p.sendMessage("§cUse an axe for Lumberjack or a pickaxe for a mining enchantment."); return false; }
-        if (toolType(tool)!=null) { p.sendMessage("§cThis tool already has one of these custom enchantments."); return false; }
-        if (p.getLevel()<APPLY_COST) { p.sendMessage("§cYou need "+APPLY_COST+" XP levels to apply this book."); return false; }
+        if (!canApplyToTool(tool,type)) { p.sendMessage("§cThis tool has this enchant already or reached its custom-enchantment limit."); return false; }
+        int cost=applyCost(tool);
+        if (p.getLevel()<cost) { p.sendMessage("§cYou need "+cost+" XP levels to apply this book."); return false; }
         return true;
     }
     private boolean isCompatibleTool(ItemStack tool, EnchantType type) {
-        return tool!=null && (type==EnchantType.LUMBERJACK ? isAxe(tool) : isPickaxe(tool));
+        return tool!=null && (type==EnchantType.LUMBERJACK ? isAxe(tool)||isPickaxe(tool) : isPickaxe(tool));
+    }
+    private boolean canApplyToTool(ItemStack tool,EnchantType type) {
+        if(!isCompatibleTool(tool,type)) return false;
+        Set<EnchantType> current=toolTypes(tool);
+        return !current.contains(type) && current.size()<maxCustomEnchants();
     }
     private void applyToTool(ItemStack tool, EnchantType type) {
-        ItemMeta meta=tool.getItemMeta(); meta.getPersistentDataContainer().set(toolKey, PersistentDataType.STRING, type.id);
-        meta.setLore(appendLore(meta.getLore(), "§d"+type.label)); tool.setItemMeta(meta);
+        ItemMeta meta=tool.getItemMeta();
+        Set<EnchantType> types=toolTypes(tool); types.add(type);
+        String ids=java.util.Arrays.stream(EnchantType.values()).filter(types::contains).map(t->t.id).collect(java.util.stream.Collectors.joining(","));
+        meta.getPersistentDataContainer().set(toolKey, PersistentDataType.STRING, ids);
+        meta.setLore(appendLore(meta.getLore(), "§d"+type.label)); meta.setEnchantmentGlintOverride(true); tool.setItemMeta(meta);
     }
     private List<String> appendLore(List<String> old, String line) { List<String> lore=old==null?new ArrayList<>():new ArrayList<>(old); lore.add(line); return lore; }
 
     @EventHandler(ignoreCancelled=true) public void onBreak(BlockBreakEvent event) {
         Player p=event.getPlayer(); if (p.isSneaking() || !p.hasPermission("customenchants.use") || processing.contains(p.getUniqueId())) return;
-        EnchantType type=toolType(p.getInventory().getItemInMainHand());
-        if (type==null) return;
+        Set<EnchantType> types=toolTypes(p.getInventory().getItemInMainHand());
+        if (types.isEmpty()) return;
         Block origin=event.getBlock();
-        if (type==EnchantType.LUMBERJACK && isAxe(p.getInventory().getItemInMainHand()) && isLog(origin.getType())) {
-            processing.add(p.getUniqueId()); try { lumberjack(event, p, origin); } finally { processing.remove(p.getUniqueId()); }
-        } else if (type==EnchantType.VEINMINER && isPickaxe(p.getInventory().getItemInMainHand()) && isOre(origin.getType())) {
-            processing.add(p.getUniqueId()); try { connected(event,p,origin,false); } finally { processing.remove(p.getUniqueId()); }
-        } else if (type==EnchantType.MINER3 && isPickaxe(p.getInventory().getItemInMainHand())) {
-            processing.add(p.getUniqueId()); try { mine3x3(event,p,origin); } finally { processing.remove(p.getUniqueId()); }
+        ItemStack tool=p.getInventory().getItemInMainHand();
+        if(types.contains(EnchantType.LUMBERJACK) && (isAxe(tool)||isPickaxe(tool)) && isLog(origin.getType())
+                || types.contains(EnchantType.VEINMINER) && isPickaxe(tool) && isOre(origin.getType())
+                || types.contains(EnchantType.MINER3) && isPickaxe(tool)) {
+            processing.add(p.getUniqueId());
+            try {
+                if(types.contains(EnchantType.LUMBERJACK) && isLog(origin.getType())) lumberjack(event,p,origin);
+                if(types.contains(EnchantType.VEINMINER) && isOre(origin.getType())) connected(event,p,origin,false);
+                if(types.contains(EnchantType.MINER3)) mine3x3(event,p,origin);
+            } finally { processing.remove(p.getUniqueId()); }
         }
     }
 

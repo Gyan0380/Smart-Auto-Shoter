@@ -1,0 +1,14 @@
+# Prices are charged in XP levels.
+prices:
+  lumberjack: 10
+  veinminer: 20
+  3x3miner: 30
+
+# Maximum blocks affected per trigger, including the first block.
+limits:
+  lumberjack: 128
+  veinminer: 64
+
+# Range around connected logs in which matching leaves are collected.
+lumberjack:
+  leaf-radius: 6

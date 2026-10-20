@@ -1,20 +1,22 @@
-# CustomEnchants 2.0.0
+# CustomEnchants 2.1.0
 
 A Paper plugin with exactly three custom enchant books, an XP shop, an admin menu, and optional TPA commands.
 
 | Book | Tool | Effect | Default price |
 |---|---|---|---:|
-| Lumberjack | Axe | Breaks connected logs; nearby leaves break and their drops go directly into inventory | 10 levels |
+| Lumberjack | Axe or pickaxe | Breaks connected logs; nearby leaves break and their drops go directly into inventory | 10 levels |
 | Vein Miner | Pickaxe | Breaks connected blocks of the same ore type | 20 levels |
 | 3x3 Miner | Pickaxe | Breaks a 3×3 plane perpendicular to the direction you're aiming; looking up or down clears a horizontal plane | 30 levels |
 
-Sneak while mining to temporarily disable the enchant. Extra blocks each consume one durability point, with Unbreaking applied; Lumberjack leaves don't consume durability. Applying a book costs 2 XP levels. Apply by placing the book on the cursor and clicking a compatible tool in inventory, with an anvil, or using `/enchantshop apply <enchant>`.
+Tools display a glint and lore for each custom enchant. Different custom enchants can share a tool up to the configurable limit (default 3); duplicate enchants are blocked. Sneak while mining to temporarily disable all effects. Extra blocks each consume one durability point, with Unbreaking applied; Lumberjack leaves don't consume durability.
+
+Application XP costs rise per existing custom enchant: defaults are 2 levels for the first, 4 for the second, and 6 for the third. Apply by placing the book on the cursor and clicking a compatible tool in inventory, with an anvil, or using `/enchantshop apply <enchant>`.
 
 ## Commands
 
 - `/enchantshop` or `/eshop` opens the shop.
 - `/enchantshop give <player> <lumberjack|veinminer|3x3miner>` gives a book (admin).
-- `/enchantadmin` opens the settings GUI (admin). Click a book to show/hide it, use +/- to change price; Shift-click changes price by 10. Toggle the shop and this plugin's TPA commands from the same menu.
+- `/enchantadmin` opens the settings GUI (admin). Click books to show/hide them, use +/- to change prices, and adjust application XP costs and maximum enchants per tool. Shift-click changes values in larger steps. Toggle the shop and this plugin's TPA commands from the same menu.
 - `/tpa <player>` requests to teleport to a player.
 - `/tpahere <player>` requests a player to teleport to you. `/tpahear` is also accepted.
 - `/tpaccept [player]`, `/tpadeny [player]`, `/tpacancel`; `/tpacancle` is an accepted spelling alias.
@@ -23,11 +25,11 @@ TPA acceptance starts a warmup (default 5 seconds), and successful teleport star
 
 ## Configuration
 
-The plugin creates `plugins/CustomEnchants/config.yml`. Change `prices.*`, `shop.enabled`, `shop.items.*.enabled`, and `tpa.*` there. TPA settings include request timeout, warmup, cooldown, cancel-on-move, and sound. `/enchantadmin` saves price and visibility changes immediately. Existing server configuration is not needed or modified by this plugin.
+The plugin creates `plugins/CustomEnchants/config.yml`. Settings include `prices.*`, `application.base-cost`, `application.additional-cost`, `application.max-per-tool`, `shop.enabled`, `shop.items.*.enabled`, and `tpa.*`. TPA settings include request timeout, warmup, cooldown, cancel-on-move, and sound. The admin GUI saves changes immediately. Existing server configuration is not needed or modified by this plugin.
 
 ## Build and install
 
-Requires JDK 25 and Gradle 8.14 or later. Run `gradle build`; the JAR is `build/libs/CustomEnchants-2.0.0.jar`. Install that JAR in the server's `plugins` directory and restart Paper 26.3 on Java 25.
+Requires JDK 25 and Gradle 8.14 or later. Run `gradle build`; the JAR is `build/libs/CustomEnchants-2.1.0.jar`. Install the JAR in the server's `plugins` directory and restart Paper 26.3 on Java 25.
 
 ## Permissions and compatibility
 
@@ -35,5 +37,5 @@ Requires JDK 25 and Gradle 8.14 or later. Run `gradle build`; the JAR is `build/
 - `customenchants.admin` defaults to operators.
 - `customenchants.tpa` defaults to everyone.
 
-Geyser/Floodgate are optional; enchant behavior is server-side. Paper 26.3 is the target, not Spigot. Additional blocks fire `BlockBreakEvent` for protection plugins, but do not individually award XP or run every vanilla block-break effect. Test on a staging server before production use; live server behavior has not been independently tested.
+Geyser/Floodgate are optional; enchant behavior is server-side. Paper 26.3 is the target, not Spigot. Extra blocks fire `BlockBreakEvent` for protection plugins, but do not individually award XP or run every vanilla block-break effect. Test on a staging server before production use; live server behavior has not been independently tested.
 

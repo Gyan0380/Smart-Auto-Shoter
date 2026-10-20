@@ -22,6 +22,7 @@ import org.bukkit.event.block.Action;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -189,7 +190,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         if(block.getType().isAir()) return;
         BlockBreakEvent extra=new BlockBreakEvent(block,p); getServer().getPluginManager().callEvent(extra); if(extra.isCancelled())return;
         ItemStack tool=p.getInventory().getItemInMainHand();
-        List<ItemStack> drops=leaves?block.getDrops():block.getDrops(tool,p);
+        Collection<ItemStack> drops=leaves?block.getDrops():block.getDrops(tool,p);
         block.setType(Material.AIR,false);
         for(ItemStack drop:drops) if(leaves) { var overflow=p.getInventory().addItem(drop); overflow.values().forEach(i->p.getWorld().dropItemNaturally(block.getLocation(),i)); }
         else p.getWorld().dropItemNaturally(block.getLocation(),drop);

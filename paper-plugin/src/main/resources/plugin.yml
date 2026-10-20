@@ -1,0 +1,20 @@
+name: CustomEnchants
+version: 1.0.0
+main: net.example.customenchants.CustomEnchants
+api-version: '26.3'
+description: Three XP-purchased utility enchantments for Paper.
+commands:
+  enchantshop:
+    description: Open the enchant shop or manage custom enchant books.
+    usage: /enchantshop [apply <lumberjack|veinminer|3x3miner> | give <player> <enchant>]
+    aliases: [eshop]
+permissions:
+  customenchants.shop:
+    description: Open and purchase from the enchant shop.
+    default: true
+  customenchants.use:
+    description: Use custom enchantments.
+    default: true
+  customenchants.admin:
+    description: Give custom enchant books to players.
+    default: op

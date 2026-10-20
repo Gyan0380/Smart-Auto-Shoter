@@ -4,6 +4,13 @@ prices:
   veinminer: 20
   3x3miner: 30
 
+# Each additional custom enchantment on the same tool adds additional-cost levels.
+# Example defaults: first enchant costs 2, second 4, third 6 levels.
+application:
+  base-cost: 2
+  additional-cost: 2
+  max-per-tool: 3
+
 shop:
   enabled: true
   items:

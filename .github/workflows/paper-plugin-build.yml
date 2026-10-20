@@ -1,0 +1,40 @@
+name: Build Paper Custom Enchants
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+    paths:
+      - "paper-plugin/**"
+      - ".github/workflows/paper-plugin-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-paper-plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.7.0"
+
+      - name: Build plugin
+        run: gradle --no-daemon -p paper-plugin clean build
+
+      - name: Upload plugin JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: CustomEnchants-Paper-26.3
+          path: paper-plugin/build/libs/CustomEnchants-*.jar
+          if-no-files-found: error

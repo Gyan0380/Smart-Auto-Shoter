@@ -2,6 +2,10 @@ package net.example.customenchants;
 
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Sound;
+import org.bukkit.util.Vector;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.command.Command;
@@ -13,6 +17,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.AnvilInventory;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -20,28 +26,46 @@ import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class CustomEnchants extends JavaPlugin implements Listener {
     private static final String SHOP_TITLE = "Custom Enchant Shop";
+    private static final String ADMIN_TITLE = "Enchant Admin Settings";
     private static final int APPLY_COST = 2;
     private NamespacedKey bookKey;
     private NamespacedKey toolKey;
     private final Set<UUID> processing = new HashSet<>();
+    private final Map<UUID,TpaRequest> incomingRequests = new HashMap<>();
+    private final Map<UUID,TpaRequest> outgoingRequests = new HashMap<>();
+    private final Map<UUID,BukkitTask> warmups = new HashMap<>();
+    private final Map<UUID,Long> tpaCooldowns = new HashMap<>();
 
     @Override public void onEnable() {
         saveDefaultConfig();
+        getConfig().options().copyDefaults(true);
+        saveConfig();
         bookKey = new NamespacedKey(this, "book_enchant");
         toolKey = new NamespacedKey(this, "tool_enchant");
         getServer().getPluginManager().registerEvents(this, this);
+        registerCommand("customenchants-tpa", List.of("tpa"), tpaCommand("tpa"));
+        registerCommand("customenchants-tpahere", List.of("tpahere", "tpahear"), tpaCommand("tpahere"));
+        registerCommand("customenchants-tpaccept", List.of("tpaccept"), tpaCommand("tpaccept"));
+        registerCommand("customenchants-tpadeny", List.of("tpadeny"), tpaCommand("tpadeny"));
+        registerCommand("customenchants-tpacancel", List.of("tpacancel", "tpacancle"), tpaCommand("tpacancel"));
     }
 
     private enum EnchantType {
@@ -82,9 +106,15 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     }
 
     @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (command.getName().equalsIgnoreCase("enchantadmin")) {
+            if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return true; }
+            if (!p.hasPermission("customenchants.admin")) { p.sendMessage("§cYou don't have permission."); return true; }
+            openAdmin(p); return true;
+        }
         if (args.length == 0) {
             if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return true; }
             if (!p.hasPermission("customenchants.shop")) { p.sendMessage("§cYou don't have permission."); return true; }
+            if (!getConfig().getBoolean("shop.enabled", true)) { p.sendMessage("§cThe enchant shop is currently disabled."); return true; }
             openShop(p); return true;
         }
         if (args[0].equalsIgnoreCase("apply") && args.length == 2 && sender instanceof Player p) {
@@ -108,7 +138,9 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         Inventory inv=getServer().createInventory(null, 27, SHOP_TITLE);
         int[] slots={11,13,15};
         for (int i=0;i<3;i++) {
-            EnchantType t=EnchantType.values()[i]; ItemStack item=book(t); ItemMeta meta=item.getItemMeta();
+            EnchantType t=EnchantType.values()[i];
+            if (!getConfig().getBoolean("shop.items."+t.id+".enabled", true)) continue;
+            ItemStack item=book(t); ItemMeta meta=item.getItemMeta();
             meta.setLore(List.of("§7Price: §e"+price(t)+" XP levels", "§aClick to purchase")); item.setItemMeta(meta); inv.setItem(slots[i], item);
         }
         p.openInventory(inv);
@@ -118,14 +150,201 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         if (!SHOP_TITLE.equals(e.getView().getTitle())) return;
         e.setCancelled(true);
         if (!(e.getWhoClicked() instanceof Player p) || e.getRawSlot() >= e.getView().getTopInventory().getSize()) return;
+        if (!getConfig().getBoolean("shop.enabled", true)) { p.sendMessage("§cThe enchant shop is currently disabled."); return; }
         int slot=e.getRawSlot(); EnchantType type=slot==11?EnchantType.LUMBERJACK:slot==13?EnchantType.VEINMINER:slot==15?EnchantType.MINER3:null;
-        if (type==null) return;
+        if (type==null || !getConfig().getBoolean("shop.items."+type.id+".enabled", true)) return;
         int cost=price(type);
         if (p.getLevel()<cost) { p.sendMessage("§cYou need "+cost+" XP levels."); return; }
         p.setLevel(p.getLevel()-cost);
         var overflow=p.getInventory().addItem(book(type));
         overflow.values().forEach(item->p.getWorld().dropItemNaturally(p.getLocation(), item));
         p.sendMessage("§aPurchased "+type.label+" for "+cost+" XP levels.");
+    }
+
+    private void openAdmin(Player p) {
+        Inventory inv=getServer().createInventory(null,27,ADMIN_TITLE);
+        EnchantType[] types=EnchantType.values(); int[][] rows={{10,11,12},{13,14,15},{16,17,18}};
+        for(int i=0;i<types.length;i++) {
+            EnchantType type=types[i]; int[] row=rows[i];
+            inv.setItem(row[0],adminItem(Material.REDSTONE,"§c-1 XP level",List.of("§7Shift-click to change by 10")));
+            inv.setItem(row[1],adminItem(type.icon,"§e"+type.label,List.of(
+                    "§7Price: §e"+price(type)+" levels",
+                    "§7In shop: "+(shopItemEnabled(type)?"§aYes":"§cNo"),
+                    "§fClick to toggle shop listing")));
+            inv.setItem(row[2],adminItem(Material.EMERALD,"§a+1 XP level",List.of("§7Shift-click to change by 10")));
+        }
+        inv.setItem(21,adminItem(Material.CHEST,"§eEnchant shop: "+(getConfig().getBoolean("shop.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to toggle")));
+        inv.setItem(23,adminItem(Material.ENDER_PEARL,"§eTPA commands: "+(getConfig().getBoolean("tpa.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to toggle")));
+        inv.setItem(26,adminItem(Material.BARRIER,"§cClose",List.of()));
+        p.openInventory(inv);
+    }
+    private ItemStack adminItem(Material material,String name,List<String> lore) {
+        ItemStack item=new ItemStack(material); ItemMeta meta=item.getItemMeta(); meta.setDisplayName(name); meta.setLore(lore); item.setItemMeta(meta); return item;
+    }
+    private boolean shopItemEnabled(EnchantType type) { return getConfig().getBoolean("shop.items."+type.id+".enabled",true); }
+
+    @EventHandler public void onAdminClick(InventoryClickEvent e) {
+        if(!ADMIN_TITLE.equals(e.getView().getTitle())) return;
+        e.setCancelled(true);
+        if(!(e.getWhoClicked() instanceof Player p) || !p.hasPermission("customenchants.admin")) return;
+        int slot=e.getRawSlot();
+        if(slot==21) getConfig().set("shop.enabled",!getConfig().getBoolean("shop.enabled",true));
+        else if(slot==23) getConfig().set("tpa.enabled",!getConfig().getBoolean("tpa.enabled",true));
+        else if(slot==26) { p.closeInventory(); return; }
+        else {
+            EnchantType type=null; int direction=0; boolean toggle=false;
+            int[][] rows={{10,11,12},{13,14,15},{16,17,18}};
+            for(int i=0;i<rows.length;i++) {
+                if(slot==rows[i][0]) { type=EnchantType.values()[i]; direction=-1; }
+                else if(slot==rows[i][1]) { type=EnchantType.values()[i]; toggle=true; }
+                else if(slot==rows[i][2]) { type=EnchantType.values()[i]; direction=1; }
+            }
+            if(type==null) return;
+            if(toggle) getConfig().set("shop.items."+type.id+".enabled",!shopItemEnabled(type));
+            else {
+                int change=e.isShiftClick()?10:1;
+                getConfig().set("prices."+type.id,Math.max(0,Math.min(1000,price(type)+direction*change)));
+            }
+        }
+        saveConfig(); openAdmin(p);
+    }
+
+    private BasicCommand tpaCommand(String action) {
+        return new BasicCommand() {
+            @Override public void execute(CommandSourceStack source,String[] args) { runTpaCommand(source.getSender(),action,args); }
+            @Override public Collection<String> suggest(CommandSourceStack source,String[] args) {
+                if(args.length<1) return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
+                String prefix=args[args.length-1].toLowerCase(Locale.ROOT);
+                return Bukkit.getOnlinePlayers().stream().map(Player::getName).filter(n->n.toLowerCase(Locale.ROOT).startsWith(prefix)).toList();
+            }
+            @Override public String permission() { return "customenchants.tpa"; }
+        };
+    }
+    private void runTpaCommand(CommandSender sender,String action,String[] args) {
+        if(!getConfig().getBoolean("tpa.enabled",true)) { sender.sendMessage("§cThis plugin's TPA commands are disabled."); return; }
+        if(!sender.hasPermission("customenchants.tpa")) { sender.sendMessage("§cYou don't have permission."); return; }
+        if(!(sender instanceof Player player)) { sender.sendMessage("Players only."); return; }
+        switch(action) {
+            case "tpa", "tpahere" -> {
+                if(args.length!=1) { player.sendMessage("§eUsage: /"+action+" <player>"); return; }
+                Player target=Bukkit.getPlayerExact(args[0]);
+                if(target==null) { player.sendMessage("§cThat player is not online."); return; }
+                createTpaRequest(player,target,action.equals("tpahere"));
+            }
+            case "tpaccept" -> acceptTpa(player,args);
+            case "tpadeny" -> denyTpa(player,args);
+            case "tpacancel" -> cancelTpa(player);
+        }
+    }
+    private void createTpaRequest(Player requester,Player target,boolean here) {
+        if(requester.equals(target)) { requester.sendMessage("§cYou cannot request a teleport with yourself."); return; }
+        long until=tpaCooldowns.getOrDefault(requester.getUniqueId(),0L);
+        long remaining=until-System.currentTimeMillis();
+        if(remaining>0) { requester.sendMessage("§cWait "+((remaining+999)/1000)+" seconds before making another TPA request."); return; }
+        if(outgoingRequests.containsKey(requester.getUniqueId())) { requester.sendMessage("§cYou already have a pending TPA request. Use /tpacancel first."); return; }
+        if(incomingRequests.containsKey(target.getUniqueId())) { requester.sendMessage("§cThat player already has a pending TPA request."); return; }
+        TpaRequest request=new TpaRequest(requester.getUniqueId(),target.getUniqueId(),here);
+        outgoingRequests.put(requester.getUniqueId(),request); incomingRequests.put(target.getUniqueId(),request);
+        int timeout=Math.max(5,getConfig().getInt("tpa.request-timeout-seconds",60));
+        request.expiry=Bukkit.getScheduler().runTaskLater(this,()->{
+            if(outgoingRequests.get(request.requester)==request) {
+                removeTpaRequest(request);
+                Player from=Bukkit.getPlayer(request.requester),to=Bukkit.getPlayer(request.target);
+                if(from!=null) from.sendMessage("§cYour TPA request expired.");
+                if(to!=null) to.sendMessage("§cThe TPA request expired.");
+            }
+        },timeout*20L);
+        String kind=here?"wants you to teleport to them":"wants to teleport to you";
+        target.sendMessage("§e"+requester.getName()+" "+kind+". Use §a/tpaccept §eor §c/tpadeny§e. Expires in "+timeout+" seconds.");
+        requester.sendMessage("§aTPA request sent to "+target.getName()+".");
+    }
+    private void acceptTpa(Player acceptor,String[] args) {
+        TpaRequest request=incomingRequests.get(acceptor.getUniqueId());
+        if(request==null) { acceptor.sendMessage("§cYou have no pending TPA request."); return; }
+        if(args.length>1) { acceptor.sendMessage("§eUsage: /tpaccept [player]"); return; }
+        Player requester=Bukkit.getPlayer(request.requester);
+        if(requester==null || (args.length==1&&!requester.getName().equalsIgnoreCase(args[0]))) { acceptor.sendMessage("§cNo matching pending request was found."); return; }
+        removeTpaRequest(request);
+        Player teleporter=request.here?acceptor:requester;
+        Player destination=request.here?requester:acceptor;
+        startTpaWarmup(teleporter,destination,request.requester);
+        requester.sendMessage("§aYour TPA request was accepted.");
+        acceptor.sendMessage("§aRequest accepted. Teleporting in "+Math.max(0,getConfig().getInt("tpa.warmup-seconds",5))+" seconds.");
+    }
+    private void denyTpa(Player player,String[] args) {
+        TpaRequest request=incomingRequests.get(player.getUniqueId());
+        if(args.length>1) { player.sendMessage("§eUsage: /tpadeny [player]"); return; }
+        if(request==null) { player.sendMessage("§cYou have no pending TPA request."); return; }
+        Player requester=Bukkit.getPlayer(request.requester);
+        if(requester==null || (args.length==1&&!requester.getName().equalsIgnoreCase(args[0]))) { player.sendMessage("§cNo matching pending request was found."); return; }
+        removeTpaRequest(request); player.sendMessage("§eTPA request denied."); requester.sendMessage("§cYour TPA request was denied.");
+    }
+    private void cancelTpa(Player player) {
+        boolean changed=false;
+        TpaRequest sent=outgoingRequests.get(player.getUniqueId());
+        if(sent!=null) { removeTpaRequest(sent); Player target=Bukkit.getPlayer(sent.target); if(target!=null) target.sendMessage("§cThe TPA request was cancelled."); changed=true; }
+        TpaRequest received=incomingRequests.get(player.getUniqueId());
+        if(received!=null) { removeTpaRequest(received); Player requester=Bukkit.getPlayer(received.requester); if(requester!=null) requester.sendMessage("§cThe TPA request was cancelled."); changed=true; }
+        if(warmups.containsKey(player.getUniqueId())) { cancelWarmup(player.getUniqueId(),"§cTeleport cancelled."); changed=true; }
+        if(!changed) player.sendMessage("§7You have no pending TPA request or teleport.");
+    }
+    private void removeTpaRequest(TpaRequest request) {
+        outgoingRequests.remove(request.requester,request); incomingRequests.remove(request.target,request);
+        if(request.expiry!=null) request.expiry.cancel();
+    }
+    private void startTpaWarmup(Player teleporter,Player destination,UUID requesterId) {
+        cancelWarmup(teleporter.getUniqueId(),null);
+        int seconds=Math.max(0,Math.min(120,getConfig().getInt("tpa.warmup-seconds",5)));
+        Location start=teleporter.getLocation().clone();
+        if(seconds==0) { completeTpa(teleporter,destination,requesterId); return; }
+        BukkitTask task=new BukkitRunnable() {
+            int left=seconds;
+            @Override public void run() {
+                if(!teleporter.isOnline() || !destination.isOnline()) { warmups.remove(teleporter.getUniqueId()); cancel(); return; }
+                if(getConfig().getBoolean("tpa.cancel-on-move",true) && moved(start,teleporter.getLocation())) {
+                    warmups.remove(teleporter.getUniqueId()); cancel(); teleporter.sendMessage("§cTeleport cancelled because you moved."); return;
+                }
+                if(left<=0) { warmups.remove(teleporter.getUniqueId()); completeTpa(teleporter,destination,requesterId); cancel(); return; }
+                teleporter.sendMessage("§eTeleporting in "+left+" seconds. Don't move."); left--;
+            }
+        }.runTaskTimer(this,0L,20L);
+        warmups.put(teleporter.getUniqueId(),task);
+    }
+    private boolean moved(Location a,Location b) {
+        return !a.getWorld().equals(b.getWorld()) || a.getBlockX()!=b.getBlockX() || a.getBlockY()!=b.getBlockY() || a.getBlockZ()!=b.getBlockZ();
+    }
+    private void completeTpa(Player teleporter,Player destination,UUID requesterId) {
+        if(!teleporter.isOnline() || !destination.isOnline()) return;
+        boolean success=teleporter.teleport(destination.getLocation());
+        if(!success) { teleporter.sendMessage("§cTeleport failed."); return; }
+        int cooldown=Math.max(0,Math.min(3600,getConfig().getInt("tpa.cooldown-seconds",5)));
+        if(cooldown>0) tpaCooldowns.put(requesterId,System.currentTimeMillis()+cooldown*1000L);
+        teleporter.sendMessage("§aTeleported to "+destination.getName()+".");
+        destination.sendMessage("§a"+teleporter.getName()+" teleported to you.");
+        if(getConfig().getBoolean("tpa.play-sound",true)) {
+            try { Sound sound=Sound.valueOf(getConfig().getString("tpa.sound","ENTITY_ENDERMAN_TELEPORT"));
+                teleporter.playSound(teleporter.getLocation(),sound,1f,1f); destination.playSound(destination.getLocation(),sound,1f,1f);
+            } catch(IllegalArgumentException ignored) { getLogger().warning("Invalid TPA sound in config.yml"); }
+        }
+        if(cooldown>0) teleporter.sendMessage("§7TPA cooldown: "+cooldown+" seconds.");
+    }
+    private void cancelWarmup(UUID playerId,String message) {
+        BukkitTask task=warmups.remove(playerId); if(task!=null) task.cancel();
+        Player player=Bukkit.getPlayer(playerId); if(message!=null&&player!=null) player.sendMessage(message);
+    }
+    @EventHandler public void onMoveDuringTpa(PlayerMoveEvent e) {
+        if(!getConfig().getBoolean("tpa.cancel-on-move",true) || e.getTo()==null || !moved(e.getFrom(),e.getTo())) return;
+        if(warmups.containsKey(e.getPlayer().getUniqueId())) cancelWarmup(e.getPlayer().getUniqueId(),"§cTeleport cancelled because you moved.");
+    }
+    @EventHandler public void onTpaQuit(PlayerQuitEvent e) {
+        UUID id=e.getPlayer().getUniqueId(); cancelWarmup(id,null);
+        TpaRequest sent=outgoingRequests.get(id),received=incomingRequests.get(id);
+        if(sent!=null) removeTpaRequest(sent); if(received!=null) removeTpaRequest(received);
+    }
+
+    private static final class TpaRequest {
+        final UUID requester,target; final boolean here; BukkitTask expiry;
+        TpaRequest(UUID requester,UUID target,boolean here) { this.requester=requester; this.target=target; this.here=here; }
     }
 
     @EventHandler public void onBookApplyClick(InventoryClickEvent e) {
@@ -236,10 +455,16 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         } return out;
     }
     private void mine3x3(BlockBreakEvent root, Player p, Block origin) {
-        BlockFace facing=p.getFacing(); List<Block> plane=new ArrayList<>();
-        if(facing==BlockFace.UP||facing==BlockFace.DOWN) { for(int x=-1;x<=1;x++)for(int z=-1;z<=1;z++)if(x!=0||z!=0)plane.add(origin.getRelative(x,0,z)); }
-        else { BlockFace side=(facing==BlockFace.NORTH||facing==BlockFace.SOUTH)?BlockFace.EAST:BlockFace.NORTH;
-            for(int a=-1;a<=1;a++)for(int y=-1;y<=1;y++)if(a!=0||y!=0)plane.add(origin.getRelative(side,a).getRelative(0,y,0)); }
+        Vector direction=p.getEyeLocation().getDirection(); List<Block> plane=new ArrayList<>();
+        double ax=Math.abs(direction.getX()), ay=Math.abs(direction.getY()), az=Math.abs(direction.getZ());
+        // Aim mostly up/down to clear a horizontal plane; otherwise clear a wall perpendicular to aim.
+        if(ay>=ax && ay>=az) {
+            for(int x=-1;x<=1;x++) for(int z=-1;z<=1;z++) if(x!=0||z!=0) plane.add(origin.getRelative(x,0,z));
+        } else if(ax>=az) {
+            for(int y=-1;y<=1;y++) for(int z=-1;z<=1;z++) if(y!=0||z!=0) plane.add(origin.getRelative(0,y,z));
+        } else {
+            for(int x=-1;x<=1;x++) for(int y=-1;y<=1;y++) if(x!=0||y!=0) plane.add(origin.getRelative(x,y,0));
+        }
         for(Block b:plane) if(!b.getType().isAir()&&!breakAndDrop(root,p,b,false)) return;
     }
     private boolean breakAndDrop(BlockBreakEvent root, Player p, Block block, boolean leaves) {
@@ -274,3 +499,4 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     private boolean isLeaves(Material m) { return m.name().endsWith("_LEAVES"); }
     private boolean isOre(Material m) { String n=m.name(); return n.endsWith("_ORE")||n.equals("ANCIENT_DEBRIS")||n.equals("NETHER_GOLD_ORE"); }
 }
+

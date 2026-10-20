@@ -4,6 +4,26 @@ prices:
   veinminer: 20
   3x3miner: 30
 
+shop:
+  enabled: true
+  items:
+    lumberjack:
+      enabled: true
+    veinminer:
+      enabled: true
+    3x3miner:
+      enabled: true
+
+# TPA commands are registered as aliases only when not already claimed by another plugin.
+tpa:
+  enabled: true
+  request-timeout-seconds: 60
+  warmup-seconds: 5
+  cooldown-seconds: 5
+  cancel-on-move: true
+  play-sound: true
+  sound: ENTITY_ENDERMAN_TELEPORT
+
 # Maximum blocks affected per trigger, including the first block.
 limits:
   lumberjack: 128
@@ -12,3 +32,4 @@ limits:
 # Range around connected logs in which matching leaves are collected.
 lumberjack:
   leaf-radius: 6
+

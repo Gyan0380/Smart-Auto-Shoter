@@ -18,12 +18,12 @@ Requirements: JDK 25 and Gradle 8.14 or later. From this directory, run:
 gradle build
 ```
 
-The JAR will be at `build/libs/CustomEnchants-1.0.0.jar`. Paper's repository provides the 26.3 API dependency. The dependency is compile-only and is not bundled into the plugin.
+The JAR will be at `build/libs/CustomEnchants-1.1.0.jar`. Paper's repository provides the 26.3 API dependency. The dependency is compile-only and is not bundled into the plugin.
 
 ## Install
 
 1. Make sure the server is Paper 26.3 and runs on Java 25.
-2. Copy `CustomEnchants-1.0.0.jar` into the server's `plugins` directory.
+2. Copy `CustomEnchants-1.1.0.jar` into the server's `plugins` directory.
 3. Restart the server. The plugin creates its own `plugins/CustomEnchants/config.yml` on first start.
 4. Players can use `/enchantshop` to purchase a book. Hold the book on the cursor and click a compatible tool in the inventory to apply it for 2 XP levels; a Java player can also combine them in an anvil for 2 levels. `/enchantshop apply <enchant>` remains available as a command alternative and costs the same 2 levels.
 5. Operators can grant a book with `/enchantshop give <online-player> <lumberjack|veinminer|3x3miner>`.

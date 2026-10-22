@@ -383,7 +383,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     }
     @EventHandler public void onTpaQuit(PlayerQuitEvent e) {
         UUID id=e.getPlayer().getUniqueId(); cancelWarmup(id,null);
-        updateLongArmRange(e.getPlayer());
+        restoreLongArmRange(e.getPlayer());
         TpaRequest sent=outgoingRequests.get(id),received=incomingRequests.get(id);
         if(sent!=null) removeTpaRequest(sent); if(received!=null) removeTpaRequest(received);
     }
@@ -576,13 +576,11 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         double chance=Math.max(0,Math.min(1,getConfig().getDouble("less-damage.prevent-chance",0.45)));
         if(ThreadLocalRandom.current().nextDouble()<chance) {
             e.setDamage(0);
-            if(ThreadLocalRandom.current().nextDouble()<Math.max(0,Math.min(1,getConfig().getDouble("less-damage.repair-chance",0.05))))
-                Bukkit.getScheduler().runTask(this,()->{
-                    ItemStack current=e.getPlayer().getInventory().getItemInMainHand();
-                    if(current.isSimilar(item) && current.getItemMeta() instanceof Damageable d && d.getDamage()>0) {
-                        d.setDamage(d.getDamage()-1); current.setItemMeta((ItemMeta)d);
-                    }
-                });
+            if(ThreadLocalRandom.current().nextDouble()<Math.max(0,Math.min(1,getConfig().getDouble("less-damage.repair-chance",0.05)))
+                    && item.getItemMeta() instanceof Damageable d && d.getDamage()>0) {
+                d.setDamage(d.getDamage()-1);
+                item.setItemMeta((ItemMeta)d);
+            }
         } else {
             double reduction=Math.max(0,Math.min(0.9,getConfig().getDouble("less-damage.reduction",0.25)));
             e.setDamage(Math.max(0,(int)Math.floor(e.getDamage()*(1.0-reduction))));
@@ -600,6 +598,10 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             Map<String,Double> saved=longArmOriginalRanges.remove(id);
             if(saved!=null) for(var entry:saved.entrySet()) setReachBaseExact(player,entry.getKey(),entry.getValue());
         }
+    }
+    private void restoreLongArmRange(Player player) {
+        Map<String,Double> saved=longArmOriginalRanges.remove(player.getUniqueId());
+        if(saved!=null) for(var entry:saved.entrySet()) setReachBaseExact(player,entry.getKey(),entry.getValue());
     }
     @SuppressWarnings({"unchecked","rawtypes"})
     private void setReachBase(Player player,String attributeName,Map<String,Double> saved,double bonus) {
@@ -662,7 +664,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     private int xpAtLevel(int l) {
         return l<=16?l*l+6*l:l<=31?(int)Math.floor(2.5*l*l-40.5*l+360):(int)Math.floor(4.5*l*l-162.5*l+2220);
     }
-    private int xpToNext(int l) { return l>=30?9+2*(l-30):l>=15?37+2*(l-15):7+2*l; }
+    private int xpToNext(int l) { return l>=30?67+2*(l-30):l>=15?37+2*(l-15):7+2*l; }
 
     private boolean isAxe(ItemStack i) { return i!=null&&i.getType().name().endsWith("_AXE"); }
     private boolean isPickaxe(ItemStack i) { return i!=null&&i.getType().name().endsWith("_PICKAXE"); }

@@ -6,7 +6,7 @@ description: Six XP-purchased utility enchantments for Paper.
 commands:
   enchantshop:
     description: Open the enchant shop or manage custom enchant books.
-    usage: /enchantshop [apply <lumberjack|veinminer|3x3miner> | give <player> <enchant>]
+    usage: /enchantshop [apply <lumberjack|veinminer|3x3miner|longarm|lessdamage|healer> | give <player> <enchant>]
     aliases: [eshop]
   enchantadmin:
     description: Open the CustomEnchants admin settings menu.

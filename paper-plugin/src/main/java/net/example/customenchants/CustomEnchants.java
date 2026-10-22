@@ -15,6 +15,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.player.PlayerItemDamageEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -70,7 +73,10 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     private enum EnchantType {
         LUMBERJACK("lumberjack", "Lumberjack", Material.IRON_AXE, 10),
         VEINMINER("veinminer", "Vein Miner", Material.IRON_PICKAXE, 20),
-        MINER3("3x3miner", "3x3 Miner", Material.DIAMOND_PICKAXE, 30);
+        MINER3("3x3miner", "3x3 Miner", Material.DIAMOND_PICKAXE, 30),
+        LONG_ARM("longarm", "Long Arm", Material.IRON_PICKAXE, 15),
+        LESS_DAMAGE("lessdamage", "Less Damage", Material.DIAMOND_CHESTPLATE, 40),
+        HEALER("healer", "Healer", Material.EXPERIENCE_BOTTLE, 25);
         final String id, label; final Material icon; final int defaultPrice;
         EnchantType(String id, String label, Material icon, int defaultPrice) {
             this.id=id; this.label=label; this.icon=icon; this.defaultPrice=defaultPrice;
@@ -141,14 +147,25 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
 
     private void openShop(Player p) {
         Inventory inv=getServer().createInventory(null, 27, SHOP_TITLE);
-        int[] slots={11,13,15};
-        for (int i=0;i<3;i++) {
-            EnchantType t=EnchantType.values()[i];
+        int[] slots={10,11,12,14,15,16};
+        EnchantType[] types=EnchantType.values();
+        for (int i=0;i<types.length;i++) {
+            EnchantType t=types[i];
             if (!getConfig().getBoolean("shop.items."+t.id+".enabled", true)) continue;
             ItemStack item=book(t); ItemMeta meta=item.getItemMeta();
-            meta.setLore(List.of("§7Price: §e"+price(t)+" XP levels", "§aClick to purchase")); item.setItemMeta(meta); inv.setItem(slots[i], item);
+            meta.setLore(List.of("§7Price: §e"+price(t)+" XP levels", "§7"+bookDescription(t), "§aClick to purchase")); item.setItemMeta(meta); inv.setItem(slots[i], item);
         }
         p.openInventory(inv);
+    }
+    private String bookDescription(EnchantType t) {
+        return switch(t) {
+            case LUMBERJACK -> "Chop connected logs.";
+            case VEINMINER -> "Mine connected matching ores.";
+            case MINER3 -> "Mine a 3x3 plane.";
+            case LONG_ARM -> "Extends block and entity reach.";
+            case LESS_DAMAGE -> "Chance to reduce equipment durability loss.";
+            case HEALER -> "Sneak + right-click to repair with XP points.";
+        };
     }
 
     @EventHandler public void onShopClick(InventoryClickEvent e) {
@@ -156,7 +173,8 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         e.setCancelled(true);
         if (!(e.getWhoClicked() instanceof Player p) || e.getRawSlot() >= e.getView().getTopInventory().getSize()) return;
         if (!getConfig().getBoolean("shop.enabled", true)) { p.sendMessage("§cThe enchant shop is currently disabled."); return; }
-        int slot=e.getRawSlot(); EnchantType type=slot==11?EnchantType.LUMBERJACK:slot==13?EnchantType.VEINMINER:slot==15?EnchantType.MINER3:null;
+        int slot=e.getRawSlot(); int[] slots={10,11,12,14,15,16}; EnchantType type=null;
+        for(int i=0;i<slots.length;i++) if(slot==slots[i]) type=EnchantType.values()[i];
         if (type==null || !getConfig().getBoolean("shop.items."+type.id+".enabled", true)) return;
         int cost=price(type);
         if (p.getLevel()<cost) { p.sendMessage("§cYou need "+cost+" XP levels."); return; }
@@ -167,8 +185,8 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     }
 
     private void openAdmin(Player p) {
-        Inventory inv=getServer().createInventory(null,27,ADMIN_TITLE);
-        EnchantType[] types=EnchantType.values(); int[][] rows={{10,11,12},{13,14,15},{16,17,18}};
+        Inventory inv=getServer().createInventory(null,54,ADMIN_TITLE);
+        EnchantType[] types=EnchantType.values(); int[][] rows={{10,11,12},{13,14,15},{16,17,18},{19,20,21},{22,23,24},{25,26,27}};
         for(int i=0;i<types.length;i++) {
             EnchantType type=types[i]; int[] row=rows[i];
             inv.setItem(row[0],adminItem(Material.REDSTONE,"§c-1 XP level",List.of("§7Shift-click to change by 10")));
@@ -187,9 +205,10 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         inv.setItem(6,adminItem(Material.REDSTONE,"§cMax enchants: -1",List.of("§7Minimum 1", "§7Shift-click changes by 2")));
         inv.setItem(7,adminItem(Material.BOOK,"§eMax per tool: "+maxCustomEnchants(),List.of("§7Maximum 3")));
         inv.setItem(8,adminItem(Material.EMERALD,"§aMax enchants: +1",List.of("§7Shift-click changes by 2")));
-        inv.setItem(21,adminItem(Material.CHEST,"§eEnchant shop: "+(getConfig().getBoolean("shop.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to toggle")));
-        inv.setItem(23,adminItem(Material.ENDER_PEARL,"§eTPA commands: "+(getConfig().getBoolean("tpa.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to toggle")));
-        inv.setItem(26,adminItem(Material.BARRIER,"§cClose",List.of()));
+        inv.setItem(45,adminItem(Material.CHEST,"§eEnchant shop: "+(getConfig().getBoolean("shop.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to toggle")));
+        inv.setItem(47,adminItem(Material.ENDER_PEARL,"§eTPA commands: "+(getConfig().getBoolean("tpa.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to toggle")));
+        inv.setItem(53,adminItem(Material.BARRIER,"§cClose",List.of()));
+        inv.setItem(49,adminItem(Material.EXPERIENCE_BOTTLE,"§bHealer settings",List.of("§7Repair rate: "+getConfig().getDouble("healer.xp-per-durability",1.5)+" XP points per durability","§7Change in config.yml")));
         p.openInventory(inv);
     }
     private ItemStack adminItem(Material material,String name,List<String> lore) {
@@ -206,12 +225,13 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         if(slot==0 || slot==2) changeSetting("application.base-cost",applyBaseCost(),slot==0?-1:1,e.isShiftClick()?5:1,0,100);
         else if(slot==3 || slot==5) changeSetting("application.additional-cost",applyStepCost(),slot==3?-1:1,e.isShiftClick()?5:1,0,100);
         else if(slot==6 || slot==8) changeSetting("application.max-per-tool",maxCustomEnchants(),slot==6?-1:1,e.isShiftClick()?2:1,1,3);
-        else if(slot==21) getConfig().set("shop.enabled",!getConfig().getBoolean("shop.enabled",true));
-        else if(slot==23) getConfig().set("tpa.enabled",!getConfig().getBoolean("tpa.enabled",true));
-        else if(slot==26) { p.closeInventory(); return; }
+        else if(slot==45) getConfig().set("shop.enabled",!getConfig().getBoolean("shop.enabled",true));
+        else if(slot==47) getConfig().set("tpa.enabled",!getConfig().getBoolean("tpa.enabled",true));
+        else if(slot==53) { p.closeInventory(); return; }
+        else if(slot==49) { p.sendMessage("§eHealer repair rate is configured in plugins/CustomEnchants/config.yml (healer.xp-per-durability)."); return; }
         else {
             EnchantType type=null; int direction=0; boolean toggle=false;
-            int[][] rows={{10,11,12},{13,14,15},{16,17,18}};
+            int[][] rows={{10,11,12},{13,14,15},{16,17,18},{19,20,21},{22,23,24},{25,26,27}};
             for(int i=0;i<rows.length;i++) {
                 if(slot==rows[i][0]) { type=EnchantType.values()[i]; direction=-1; }
                 else if(slot==rows[i][1]) { type=EnchantType.values()[i]; toggle=true; }
@@ -433,7 +453,13 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         return true;
     }
     private boolean isCompatibleTool(ItemStack tool, EnchantType type) {
-        return tool!=null && (type==EnchantType.LUMBERJACK ? isAxe(tool)||isPickaxe(tool) : isPickaxe(tool));
+        if(tool==null || tool.getType().isAir()) return false;
+        return switch(type) {
+            case LUMBERJACK -> isAxe(tool)||isPickaxe(tool);
+            case VEINMINER, MINER3 -> isPickaxe(tool);
+            case LONG_ARM -> isToolOrWeapon(tool);
+            case LESS_DAMAGE, HEALER -> tool.getType().getMaxDurability()>0;
+        };
     }
     private boolean canApplyToTool(ItemStack tool,EnchantType type) {
         if(!isCompatibleTool(tool,type)) return false;
@@ -522,6 +548,14 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         if(!(meta instanceof Damageable damageable)) return false;
         int unbreaking=meta.getEnchantLevel(Enchantment.UNBREAKING);
         if(unbreaking>0 && ThreadLocalRandom.current().nextInt(unbreaking+1)!=0) return true;
+        if(toolTypes(tool).contains(EnchantType.LESS_DAMAGE)) {
+            double chance=Math.max(0,Math.min(1,getConfig().getDouble("less-damage.prevent-chance",0.45)));
+            if(ThreadLocalRandom.current().nextDouble()<chance) {
+                if(ThreadLocalRandom.current().nextDouble()<Math.max(0,Math.min(1,getConfig().getDouble("less-damage.repair-chance",0.05))))
+                    damageable.setDamage(Math.max(0,damageable.getDamage()-1));
+                tool.setItemMeta(meta); return true;
+            }
+        }
         int newDamage=damageable.getDamage()+1;
         if(newDamage>=tool.getType().getMaxDurability()) {
             p.getInventory().setItemInMainHand(null);
@@ -530,8 +564,70 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         damageable.setDamage(newDamage); tool.setItemMeta(meta);
         return true;
     }
+    @EventHandler(ignoreCancelled=true)
+    public void onItemDamage(PlayerItemDamageEvent e) {
+        ItemStack item=e.getItem();
+        if(!toolTypes(item).contains(EnchantType.LESS_DAMAGE)) return;
+        double chance=Math.max(0,Math.min(1,getConfig().getDouble("less-damage.prevent-chance",0.45)));
+        if(ThreadLocalRandom.current().nextDouble()<chance) {
+            e.setDamage(0);
+            if(ThreadLocalRandom.current().nextDouble()<Math.max(0,Math.min(1,getConfig().getDouble("less-damage.repair-chance",0.05))))
+                Bukkit.getScheduler().runTask(this,()->{
+                    ItemStack current=e.getPlayer().getInventory().getItemInMainHand();
+                    if(current.isSimilar(item) && current.getItemMeta() instanceof Damageable d && d.getDamage()>0) {
+                        d.setDamage(d.getDamage()-1); current.setItemMeta((ItemMeta)d);
+                    }
+                });
+        } else {
+            double reduction=Math.max(0,Math.min(0.9,getConfig().getDouble("less-damage.reduction",0.25)));
+            e.setDamage(Math.max(0,(int)Math.floor(e.getDamage()*(1.0-reduction))));
+        }
+    }
+
+    @EventHandler
+    public void onHealerUse(PlayerInteractEvent e) {
+        if(e.getAction()!=Action.RIGHT_CLICK_AIR && e.getAction()!=Action.RIGHT_CLICK_BLOCK) return;
+        Player p=e.getPlayer();
+        if(!p.isSneaking() || !p.hasPermission("customenchants.use")) return;
+        ItemStack item=e.getItem();
+        if(item==null || !toolTypes(item).contains(EnchantType.HEALER) || !(item.getItemMeta() instanceof Damageable d)) return;
+        int damage=d.getDamage();
+        if(damage<=0) { p.sendMessage("§aThis item is already fully repaired."); return; }
+        double rate=Math.max(0.1,getConfig().getDouble("healer.xp-per-durability",1.5));
+        int available=totalXpPoints(p);
+        int repair=Math.min(damage,(int)Math.floor(available/rate));
+        if(repair<=0) { p.sendMessage("§cYou need at least "+(int)Math.ceil(rate)+" XP points to repair this item."); return; }
+        int cost=(int)Math.ceil(repair*rate);
+        setTotalXpPoints(p,available-cost);
+        d.setDamage(damage-repair); item.setItemMeta((ItemMeta)d);
+        e.setCancelled(true);
+        p.sendMessage("§aHealer repaired "+repair+" durability for "+cost+" XP points.");
+    }
+    private int totalXpPoints(Player p) {
+        int level=p.getLevel();
+        int base=level<=16?level*level+6*level:level<=31?(int)Math.floor(2.5*level*level-40.5*level+360):(int)Math.floor(4.5*level*level-162.5*level+2220);
+        return Math.max(0,base+(int)Math.floor(p.getExp()*p.getExpToLevel()));
+    }
+    private void setTotalXpPoints(Player p,int points) {
+        int remaining=Math.max(0,points), level=0;
+        while(level<21863 && xpAtLevel(level+1)<=remaining) level++;
+        int base=xpAtLevel(level), needed=xpToNext(level);
+        p.setTotalExperience(remaining); p.setLevel(level);
+        p.setExp(needed<=0?0f:Math.max(0f,Math.min(0.999f,(remaining-base)/(float)needed)));
+    }
+    private int xpAtLevel(int l) {
+        return l<=16?l*l+6*l:l<=31?(int)Math.floor(2.5*l*l-40.5*l+360):(int)Math.floor(4.5*l*l-162.5*l+2220);
+    }
+    private int xpToNext(int l) { return l>=30?9+2*(l-30):l>=15?37+2*(l-15):7+2*l; }
+
     private boolean isAxe(ItemStack i) { return i!=null&&i.getType().name().endsWith("_AXE"); }
     private boolean isPickaxe(ItemStack i) { return i!=null&&i.getType().name().endsWith("_PICKAXE"); }
+    private boolean isToolOrWeapon(ItemStack i) {
+        if(i==null) return false;
+        String n=i.getType().name();
+        return n.endsWith("_AXE")||n.endsWith("_PICKAXE")||n.endsWith("_SHOVEL")||n.endsWith("_HOE")
+                ||n.endsWith("_SWORD")||n.equals("TRIDENT")||n.equals("MACE")||n.equals("SHEARS");
+    }
     private boolean isLog(Material m) { return m.name().endsWith("_LOG")||m.name().endsWith("_WOOD")||m.name().endsWith("_STEM")||m.name().endsWith("_HYPHAE"); }
     private boolean isLeaves(Material m) { return m.name().endsWith("_LEAVES"); }
     private boolean isOre(Material m) { String n=m.name(); return n.endsWith("_ORE")||n.equals("ANCIENT_DEBRIS")||n.equals("NETHER_GOLD_ORE"); }

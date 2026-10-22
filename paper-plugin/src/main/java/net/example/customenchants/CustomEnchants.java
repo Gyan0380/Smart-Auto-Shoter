@@ -463,7 +463,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             case LUMBERJACK -> isAxe(tool)||isPickaxe(tool);
             case VEINMINER, MINER3 -> isPickaxe(tool);
             case LONG_ARM -> isMiningTool(tool);
-            case LESS_DAMAGE, HEALER -> tool.getType().getMaxDurability()>0;
+            case LESS_DAMAGE, HEALER -> isToolOrArmor(tool);
         };
     }
     private boolean canApplyToTool(ItemStack tool,EnchantType type) {
@@ -671,6 +671,11 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         if(i==null) return false;
         String n=i.getType().name();
         return n.endsWith("_AXE")||n.endsWith("_PICKAXE")||n.endsWith("_SHOVEL")||n.endsWith("_HOE")||n.equals("SHEARS");
+    }
+    private boolean isToolOrArmor(ItemStack i) {
+        if(i==null || i.getType().getMaxDurability()<=0) return false;
+        String n=i.getType().name();
+        return isMiningTool(i)||n.endsWith("_HELMET")||n.endsWith("_CHESTPLATE")||n.endsWith("_LEGGINGS")||n.endsWith("_BOOTS");
     }
     private boolean isLog(Material m) { return m.name().endsWith("_LOG")||m.name().endsWith("_WOOD")||m.name().endsWith("_STEM")||m.name().endsWith("_HYPHAE"); }
     private boolean isLeaves(Material m) { return m.name().endsWith("_LEAVES"); }

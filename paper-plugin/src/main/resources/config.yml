@@ -30,6 +30,10 @@ shop:
     healer:
       enabled: true
 
+# The admin menu can block /nightvision for all players.
+nightvision:
+  enabled: true
+
 # TPA commands are registered as aliases only when not already claimed by another plugin.
 tpa:
   enabled: true

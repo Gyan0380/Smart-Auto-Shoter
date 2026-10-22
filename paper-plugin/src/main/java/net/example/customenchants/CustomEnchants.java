@@ -21,6 +21,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.AnvilInventory;
 import org.bukkit.inventory.Inventory;
@@ -52,6 +53,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     private static final String ADMIN_TITLE = "§8✦  Enchantment Control  ✦";
     private NamespacedKey bookKey;
     private NamespacedKey toolKey;
+    private NamespacedKey nightVisionKey;
     private final Set<UUID> processing = new HashSet<>();
     private final Map<UUID,TpaRequest> incomingRequests = new HashMap<>();
     private final Map<UUID,TpaRequest> outgoingRequests = new HashMap<>();
@@ -65,6 +67,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         saveConfig();
         bookKey = new NamespacedKey(this, "book_enchant");
         toolKey = new NamespacedKey(this, "tool_enchant");
+        nightVisionKey = new NamespacedKey(this, "nightvision_enabled");
         getServer().getPluginManager().registerEvents(this, this);
         registerCommand("customenchants-tpa", List.of("tpa"), tpaCommand("tpa"));
         registerCommand("customenchants-tpahere", List.of("tpahere", "tpahear"), tpaCommand("tpahere"));
@@ -130,14 +133,19 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         }
         if (command.getName().equalsIgnoreCase("nightvision")) {
             if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return true; }
+            if (!getConfig().getBoolean("nightvision.enabled", true)) {
+                p.sendMessage("§cNight vision commands are currently disabled by an admin."); return true;
+            }
             if (args.length != 1 || (!args[0].equalsIgnoreCase("on") && !args[0].equalsIgnoreCase("off"))) {
                 p.sendMessage("§eUsage: /nightvision <on|off>"); return true;
             }
             if (args[0].equalsIgnoreCase("on")) {
                 p.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, PotionEffect.INFINITE_DURATION, 0, false, false, true));
+                p.getPersistentDataContainer().set(nightVisionKey, PersistentDataType.BYTE, (byte) 1);
                 p.sendMessage("§aNight vision enabled.");
             } else {
                 p.removePotionEffect(PotionEffectType.NIGHT_VISION);
+                p.getPersistentDataContainer().remove(nightVisionKey);
                 p.sendMessage("§7Night vision disabled.");
             }
             return true;
@@ -245,6 +253,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         inv.setItem(44,adminItem(Material.LIME_STAINED_GLASS_PANE,"§a+ Enchant limit",List.of("§7Click: +1", "§7Shift-click: +2")));
         inv.setItem(47,adminItem(Material.CHEST,"§eShop: "+(getConfig().getBoolean("shop.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to enable or disable the shop")));
         inv.setItem(49,adminItem(Material.ENDER_PEARL,"§eTPA: "+(getConfig().getBoolean("tpa.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to enable or disable this plugin's TPA")));
+        inv.setItem(45,adminItem(Material.GOLDEN_CARROT,"§eNight Vision: "+(getConfig().getBoolean("nightvision.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to allow or block /nightvision for all players")));
         inv.setItem(51,adminItem(Material.EXPERIENCE_BOTTLE,"§bHealer",List.of("§7One book works on supported tools", "§7and armor. Sneak + right-click to repair.", "§7Rate: "+getConfig().getDouble("healer.xp-per-durability",1.5)+" XP points per durability")));
         inv.setItem(53,adminItem(Material.BARRIER,"§cClose",List.of("§7Close this menu")));
         p.openInventory(inv);
@@ -263,6 +272,11 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         if(slot==36 || slot==38) changeSetting("application.base-cost",applyBaseCost(),slot==36?-1:1,e.isShiftClick()?5:1,0,100);
         else if(slot==39 || slot==41) changeSetting("application.additional-cost",applyStepCost(),slot==39?-1:1,e.isShiftClick()?5:1,0,100);
         else if(slot==42 || slot==44) changeSetting("application.max-per-tool",maxCustomEnchants(),slot==42?-1:1,e.isShiftClick()?2:1,1,6);
+        else if(slot==45) {
+            boolean enabled=!getConfig().getBoolean("nightvision.enabled",true);
+            getConfig().set("nightvision.enabled",enabled);
+            if(!enabled) for(Player online:Bukkit.getOnlinePlayers()) clearPluginNightVision(online);
+        }
         else if(slot==47) getConfig().set("shop.enabled",!getConfig().getBoolean("shop.enabled",true));
         else if(slot==49) getConfig().set("tpa.enabled",!getConfig().getBoolean("tpa.enabled",true));
         else if(slot==53) { p.closeInventory(); return; }
@@ -286,6 +300,16 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     }
     private void changeSetting(String path,int current,int direction,int amount,int min,int max) {
         getConfig().set(path,Math.max(min,Math.min(max,current+direction*amount)));
+    }
+
+    @EventHandler public void onNightVisionJoin(PlayerJoinEvent event) {
+        if(!getConfig().getBoolean("nightvision.enabled",true)) clearPluginNightVision(event.getPlayer());
+    }
+    private void clearPluginNightVision(Player player) {
+        Byte enabled=player.getPersistentDataContainer().get(nightVisionKey,PersistentDataType.BYTE);
+        if(enabled==null || enabled!=1) return;
+        player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+        player.getPersistentDataContainer().remove(nightVisionKey);
     }
 
     private BasicCommand tpaCommand(String action) {

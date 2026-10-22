@@ -20,7 +20,7 @@ Application XP costs rise per existing custom enchant: defaults are 2 levels for
 - `/enchantshop` or `/eshop` opens the shop.
 - `/nightvision on` enables night vision for the player; `/nightvision off` removes it. Both options are available to all players.
 - `/enchantshop give <player> <lumberjack|veinminer|3x3miner|longarm|lessdamage|healer>` gives a book (admin).
-- `/enchantadmin` opens the settings GUI (admin). Click books to show/hide them, use +/- to change prices, and adjust application XP costs and maximum enchants per tool. Shift-click changes values in larger steps. Toggle the shop and this plugin's TPA commands from the same menu.
+- `/enchantadmin` opens the settings GUI (admin). Click books to show/hide them, use +/- to change prices, and adjust application XP costs and maximum enchants per tool. Shift-click changes values in larger steps. Toggle the shop, this plugin's TPA commands, and player night vision from the same menu. Disabling night vision removes effects granted by this plugin from online players and blocks the command.
 - `/tpa <player>` requests to teleport to a player.
 - `/tpahere <player>` requests a player to teleport to you. `/tpahear` is also accepted.
 - `/tpaccept [player]`, `/tpadeny [player]`, `/tpacancel`; `/tpacancle` is an accepted spelling alias.
@@ -29,7 +29,7 @@ TPA acceptance starts a warmup (default 5 seconds), and successful teleport star
 
 ## Configuration
 
-The plugin creates `plugins/CustomEnchants/config.yml`. Settings include `prices.*`, `application.base-cost`, `application.additional-cost`, `application.max-per-tool`, `long-arm.*`, `less-damage.*`, `healer.xp-per-durability`, `shop.enabled`, `shop.items.*.enabled`, and `tpa.*`. TPA settings include request timeout, warmup, cooldown, cancel-on-move, and sound. The admin GUI saves changes immediately. Existing server configuration is not needed or modified by this plugin.
+The plugin creates `plugins/CustomEnchants/config.yml`. Settings include `prices.*`, `application.base-cost`, `application.additional-cost`, `application.max-per-tool`, `long-arm.*`, `less-damage.*`, `healer.xp-per-durability`, `shop.enabled`, `shop.items.*.enabled`, `nightvision.enabled`, and `tpa.*`. TPA settings include request timeout, warmup, cooldown, cancel-on-move, and sound. The admin GUI saves changes immediately. Existing server configuration is not needed or modified by this plugin.
 
 ## Build and install
 

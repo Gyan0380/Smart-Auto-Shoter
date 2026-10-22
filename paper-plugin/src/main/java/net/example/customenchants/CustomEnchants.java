@@ -55,6 +55,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     private final Map<UUID,TpaRequest> outgoingRequests = new HashMap<>();
     private final Map<UUID,BukkitTask> warmups = new HashMap<>();
     private final Map<UUID,Long> tpaCooldowns = new HashMap<>();
+    private final Map<UUID,Map<String,Double>> longArmOriginalRanges = new HashMap<>();
 
     @Override public void onEnable() {
         saveDefaultConfig();
@@ -68,6 +69,9 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         registerCommand("customenchants-tpaccept", List.of("tpaccept"), tpaCommand("tpaccept"));
         registerCommand("customenchants-tpadeny", List.of("tpadeny"), tpaCommand("tpadeny"));
         registerCommand("customenchants-tpacancel", List.of("tpacancel", "tpacancle"), tpaCommand("tpacancel"));
+        getServer().getScheduler().runTaskTimer(this, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) updateLongArmRange(player);
+        }, 1L, 10L);
     }
 
     private enum EnchantType {
@@ -113,7 +117,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     }
     private int applyBaseCost() { return Math.max(0,Math.min(100,getConfig().getInt("application.base-cost",2))); }
     private int applyStepCost() { return Math.max(0,Math.min(100,getConfig().getInt("application.additional-cost",2))); }
-    private int maxCustomEnchants() { return Math.max(1,Math.min(3,getConfig().getInt("application.max-per-tool",3))); }
+    private int maxCustomEnchants() { return Math.max(1,Math.min(6,getConfig().getInt("application.max-per-tool",6))); }
     private int applyCost(ItemStack tool) { return applyBaseCost()+toolTypes(tool).size()*applyStepCost(); }
 
     @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -203,7 +207,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         inv.setItem(4,adminItem(Material.EXPERIENCE_BOTTLE,"§eAdded cost: "+applyStepCost()+" levels",List.of("§7Example: 2 base + 2 per existing enchant = 2, 4, 6")));
         inv.setItem(5,adminItem(Material.EMERALD,"§aAdded cost: +1",List.of("§7Shift-click changes by 5")));
         inv.setItem(6,adminItem(Material.REDSTONE,"§cMax enchants: -1",List.of("§7Minimum 1", "§7Shift-click changes by 2")));
-        inv.setItem(7,adminItem(Material.BOOK,"§eMax per tool: "+maxCustomEnchants(),List.of("§7Maximum 3")));
+        inv.setItem(7,adminItem(Material.BOOK,"§eMax per tool: "+maxCustomEnchants(),List.of("§7Maximum 6")));
         inv.setItem(8,adminItem(Material.EMERALD,"§aMax enchants: +1",List.of("§7Shift-click changes by 2")));
         inv.setItem(45,adminItem(Material.CHEST,"§eEnchant shop: "+(getConfig().getBoolean("shop.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to toggle")));
         inv.setItem(47,adminItem(Material.ENDER_PEARL,"§eTPA commands: "+(getConfig().getBoolean("tpa.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to toggle")));
@@ -379,6 +383,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     }
     @EventHandler public void onTpaQuit(PlayerQuitEvent e) {
         UUID id=e.getPlayer().getUniqueId(); cancelWarmup(id,null);
+        updateLongArmRange(e.getPlayer());
         TpaRequest sent=outgoingRequests.get(id),received=incomingRequests.get(id);
         if(sent!=null) removeTpaRequest(sent); if(received!=null) removeTpaRequest(received);
     }
@@ -582,6 +587,45 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             double reduction=Math.max(0,Math.min(0.9,getConfig().getDouble("less-damage.reduction",0.25)));
             e.setDamage(Math.max(0,(int)Math.floor(e.getDamage()*(1.0-reduction))));
         }
+    }
+
+    private void updateLongArmRange(Player player) {
+        UUID id=player.getUniqueId();
+        boolean active=toolTypes(player.getInventory().getItemInMainHand()).contains(EnchantType.LONG_ARM);
+        if(active) {
+            Map<String,Double> saved=longArmOriginalRanges.computeIfAbsent(id,k->new HashMap<>());
+            setReachBase(player,"BLOCK_INTERACTION_RANGE",saved,Math.max(0.0,Math.min(5.0,getConfig().getDouble("long-arm.block-range-bonus",2.0))));
+            setReachBase(player,"ENTITY_INTERACTION_RANGE",saved,Math.max(0.0,Math.min(5.0,getConfig().getDouble("long-arm.entity-range-bonus",2.0))));
+        } else {
+            Map<String,Double> saved=longArmOriginalRanges.remove(id);
+            if(saved!=null) for(var entry:saved.entrySet()) setReachBaseExact(player,entry.getKey(),entry.getValue());
+        }
+    }
+    @SuppressWarnings({"unchecked","rawtypes"})
+    private void setReachBase(Player player,String attributeName,Map<String,Double> saved,double bonus) {
+        try {
+            Class<?> attributeClass=Class.forName("org.bukkit.attribute.Attribute");
+            Object attribute=Enum.valueOf((Class<? extends Enum>)attributeClass.asSubclass(Enum.class),attributeName);
+            Object instance=player.getClass().getMethod("getAttribute",attributeClass).invoke(player,attribute);
+            if(instance==null) return;
+            Class<?> instanceClass=Class.forName("org.bukkit.attribute.AttributeInstance");
+            double current=(double)instanceClass.getMethod("getBaseValue").invoke(instance);
+            saved.putIfAbsent(attributeName,current);
+            instanceClass.getMethod("setBaseValue",double.class).invoke(instance,saved.get(attributeName)+bonus);
+        } catch (ReflectiveOperationException | IllegalArgumentException ignored) {
+            // Older Paper builds may not expose interaction-range attributes.
+        }
+    }
+    @SuppressWarnings({"unchecked","rawtypes"})
+    private void setReachBaseExact(Player player,String attributeName,double value) {
+        try {
+            Class<?> attributeClass=Class.forName("org.bukkit.attribute.Attribute");
+            Object attribute=Enum.valueOf((Class<? extends Enum>)attributeClass.asSubclass(Enum.class),attributeName);
+            Object instance=player.getClass().getMethod("getAttribute",attributeClass).invoke(player,attribute);
+            if(instance==null) return;
+            Class<?> instanceClass=Class.forName("org.bukkit.attribute.AttributeInstance");
+            instanceClass.getMethod("setBaseValue",double.class).invoke(instance,value);
+        } catch (ReflectiveOperationException | IllegalArgumentException ignored) { }
     }
 
     @EventHandler

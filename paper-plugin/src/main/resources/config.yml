@@ -3,13 +3,16 @@ prices:
   lumberjack: 10
   veinminer: 20
   3x3miner: 30
+  longarm: 15
+  lessdamage: 40
+  healer: 25
 
 # Each additional custom enchantment on the same tool adds additional-cost levels.
 # Example defaults: first enchant costs 2, second 4, third 6 levels.
 application:
   base-cost: 2
   additional-cost: 2
-  max-per-tool: 3
+  max-per-tool: 6
 
 shop:
   enabled: true
@@ -19,6 +22,12 @@ shop:
     veinminer:
       enabled: true
     3x3miner:
+      enabled: true
+    longarm:
+      enabled: true
+    lessdamage:
+      enabled: true
+    healer:
       enabled: true
 
 # TPA commands are registered as aliases only when not already claimed by another plugin.
@@ -40,3 +49,18 @@ limits:
 lumberjack:
   leaf-radius: 6
 
+
+# Long Arm bonus applies while holding an enchanted item in the main hand.
+long-arm:
+  block-range-bonus: 2.0
+  entity-range-bonus: 2.0
+
+# Chance values are 0.0-1.0. Durability reduction applies when damage is not negated.
+less-damage:
+  prevent-chance: 0.45
+  reduction: 0.25
+  repair-chance: 0.05
+
+# XP points (not levels) spent per 1 durability restored by sneaking + right-clicking.
+healer:
+  xp-per-durability: 1.5

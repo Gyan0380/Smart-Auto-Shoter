@@ -166,7 +166,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             case LUMBERJACK -> "Chop connected logs.";
             case VEINMINER -> "Mine connected matching ores.";
             case MINER3 -> "Mine a 3x3 plane.";
-            case LONG_ARM -> "Extends block and entity reach.";
+            case LONG_ARM -> "Extends block mining reach while held.";
             case LESS_DAMAGE -> "Chance to reduce equipment durability loss.";
             case HEALER -> "Sneak + right-click to repair with XP points.";
         };
@@ -462,7 +462,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         return switch(type) {
             case LUMBERJACK -> isAxe(tool)||isPickaxe(tool);
             case VEINMINER, MINER3 -> isPickaxe(tool);
-            case LONG_ARM -> isToolOrWeapon(tool);
+            case LONG_ARM -> isMiningTool(tool);
             case LESS_DAMAGE, HEALER -> tool.getType().getMaxDurability()>0;
         };
     }
@@ -593,7 +593,6 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         if(active) {
             Map<String,Double> saved=longArmOriginalRanges.computeIfAbsent(id,k->new HashMap<>());
             setReachBase(player,"BLOCK_INTERACTION_RANGE",saved,Math.max(0.0,Math.min(5.0,getConfig().getDouble("long-arm.block-range-bonus",2.0))));
-            setReachBase(player,"ENTITY_INTERACTION_RANGE",saved,Math.max(0.0,Math.min(5.0,getConfig().getDouble("long-arm.entity-range-bonus",2.0))));
         } else {
             Map<String,Double> saved=longArmOriginalRanges.remove(id);
             if(saved!=null) for(var entry:saved.entrySet()) setReachBaseExact(player,entry.getKey(),entry.getValue());
@@ -668,11 +667,10 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
 
     private boolean isAxe(ItemStack i) { return i!=null&&i.getType().name().endsWith("_AXE"); }
     private boolean isPickaxe(ItemStack i) { return i!=null&&i.getType().name().endsWith("_PICKAXE"); }
-    private boolean isToolOrWeapon(ItemStack i) {
+    private boolean isMiningTool(ItemStack i) {
         if(i==null) return false;
         String n=i.getType().name();
-        return n.endsWith("_AXE")||n.endsWith("_PICKAXE")||n.endsWith("_SHOVEL")||n.endsWith("_HOE")
-                ||n.endsWith("_SWORD")||n.equals("TRIDENT")||n.equals("MACE")||n.equals("SHEARS");
+        return n.endsWith("_AXE")||n.endsWith("_PICKAXE")||n.endsWith("_SHOVEL")||n.endsWith("_HOE")||n.equals("SHEARS");
     }
     private boolean isLog(Material m) { return m.name().endsWith("_LOG")||m.name().endsWith("_WOOD")||m.name().endsWith("_STEM")||m.name().endsWith("_HYPHAE"); }
     private boolean isLeaves(Material m) { return m.name().endsWith("_LEAVES"); }

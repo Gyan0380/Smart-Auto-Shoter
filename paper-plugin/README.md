@@ -7,7 +7,7 @@ A Paper plugin with six custom enchant books, an XP shop, an expanded admin menu
 | Lumberjack | Axe or pickaxe | Breaks connected logs; nearby leaves break and their drops go directly into inventory | 10 levels |
 | Vein Miner | Pickaxe | Breaks connected blocks of the same ore type | 20 levels |
 | 3x3 Miner | Pickaxe | Breaks a 3×3 plane perpendicular to the direction you're aiming; looking up or down clears a horizontal plane | 30 levels |
-| Long Arm | Tools and weapons | Adds configurable block/entity interaction range while held in the main hand | 15 levels |
+| Long Arm | Mining tools | Adds configurable block-mining reach while held in the main hand | 15 levels |
 | Less Damage | Damageable tools and armor | Chance to negate durability damage, otherwise reduce it; small chance to restore 1 durability | 40 levels |
 | Healer | Damageable tools and armor | Sneak + right-click while holding the enchanted item to repair it using XP points | 25 levels |
 

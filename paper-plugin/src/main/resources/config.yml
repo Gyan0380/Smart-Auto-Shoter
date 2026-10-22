@@ -50,10 +50,9 @@ lumberjack:
   leaf-radius: 6
 
 
-# Long Arm bonus applies while holding an enchanted item in the main hand.
+# Long Arm mining reach bonus applies while holding an enchanted item in the main hand.
 long-arm:
   block-range-bonus: 2.0
-  entity-range-bonus: 2.0
 
 # Chance values are 0.0-1.0. Durability reduction applies when damage is not negated.
 less-damage:

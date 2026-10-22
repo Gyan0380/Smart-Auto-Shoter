@@ -27,6 +27,8 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -46,8 +48,8 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class CustomEnchants extends JavaPlugin implements Listener {
-    private static final String SHOP_TITLE = "Custom Enchant Shop";
-    private static final String ADMIN_TITLE = "Enchant Admin Settings";
+    private static final String SHOP_TITLE = "§8✦  Enchantment Shop  ✦";
+    private static final String ADMIN_TITLE = "§8✦  Enchantment Control  ✦";
     private NamespacedKey bookKey;
     private NamespacedKey toolKey;
     private final Set<UUID> processing = new HashSet<>();
@@ -126,6 +128,20 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             if (!p.hasPermission("customenchants.admin")) { p.sendMessage("§cYou don't have permission."); return true; }
             openAdmin(p); return true;
         }
+        if (command.getName().equalsIgnoreCase("nightvision")) {
+            if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return true; }
+            if (args.length != 1 || (!args[0].equalsIgnoreCase("on") && !args[0].equalsIgnoreCase("off"))) {
+                p.sendMessage("§eUsage: /nightvision <on|off>"); return true;
+            }
+            if (args[0].equalsIgnoreCase("on")) {
+                p.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, PotionEffect.INFINITE_DURATION, 0, false, false, true));
+                p.sendMessage("§aNight vision enabled.");
+            } else {
+                p.removePotionEffect(PotionEffectType.NIGHT_VISION);
+                p.sendMessage("§7Night vision disabled.");
+            }
+            return true;
+        }
         if (args.length == 0) {
             if (!(sender instanceof Player p)) { sender.sendMessage("Players only."); return true; }
             if (!p.hasPermission("customenchants.shop")) { p.sendMessage("§cYou don't have permission."); return true; }
@@ -151,15 +167,25 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
 
     private void openShop(Player p) {
         Inventory inv=getServer().createInventory(null, 27, SHOP_TITLE);
+        fill(inv, Material.GRAY_STAINED_GLASS_PANE, " ");
+        for (int slot : new int[]{10,11,12,14,15,16}) inv.setItem(slot, null);
         int[] slots={10,11,12,14,15,16};
-        EnchantType[] types=EnchantType.values();
-        for (int i=0;i<types.length;i++) {
-            EnchantType t=types[i];
+        inv.setItem(4,adminItem(Material.ENCHANTED_BOOK,"§d§lCustom Enchantments",List.of("§7Choose a book to purchase.","§7Prices are paid in XP levels.")));
+        int visible=0;
+        for (EnchantType t:EnchantType.values()) {
             if (!getConfig().getBoolean("shop.items."+t.id+".enabled", true)) continue;
             ItemStack item=book(t); ItemMeta meta=item.getItemMeta();
-            meta.setLore(List.of("§7Price: §e"+price(t)+" XP levels", "§7"+bookDescription(t), "§aClick to purchase")); item.setItemMeta(meta); inv.setItem(slots[i], item);
+            meta.setDisplayName("§d§l"+t.label+" Book");
+            meta.setLore(List.of("§8Custom enchantment", "", "§7"+bookDescription(t), "", "§7Price   §e"+price(t)+" XP levels", "§aClick to purchase"));
+            item.setItemMeta(meta); inv.setItem(slots[visible++], item);
         }
+        inv.setItem(22,adminItem(Material.EXPERIENCE_BOTTLE,"§bXP Level Balance",List.of("§7Your balance: §e"+p.getLevel()+" levels")));
         p.openInventory(inv);
+    }
+
+    private void fill(Inventory inv, Material material, String name) {
+        ItemStack filler=adminItem(material,name,List.of());
+        for(int i=0;i<inv.getSize();i++) inv.setItem(i,filler);
     }
     private String bookDescription(EnchantType t) {
         return switch(t) {
@@ -177,8 +203,12 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         e.setCancelled(true);
         if (!(e.getWhoClicked() instanceof Player p) || e.getRawSlot() >= e.getView().getTopInventory().getSize()) return;
         if (!getConfig().getBoolean("shop.enabled", true)) { p.sendMessage("§cThe enchant shop is currently disabled."); return; }
-        int slot=e.getRawSlot(); int[] slots={10,11,12,14,15,16}; EnchantType type=null;
-        for(int i=0;i<slots.length;i++) if(slot==slots[i]) type=EnchantType.values()[i];
+        int slot=e.getRawSlot(); int[] slots={10,11,12,14,15,16}; EnchantType type=null; int visible=0;
+        for(EnchantType candidate:EnchantType.values()) {
+            if(!getConfig().getBoolean("shop.items."+candidate.id+".enabled",true)) continue;
+            if(visible<slots.length && slot==slots[visible]) type=candidate;
+            visible++;
+        }
         if (type==null || !getConfig().getBoolean("shop.items."+type.id+".enabled", true)) return;
         int cost=price(type);
         if (p.getLevel()<cost) { p.sendMessage("§cYou need "+cost+" XP levels."); return; }
@@ -190,29 +220,33 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
 
     private void openAdmin(Player p) {
         Inventory inv=getServer().createInventory(null,54,ADMIN_TITLE);
-        EnchantType[] types=EnchantType.values(); int[][] rows={{10,11,12},{13,14,15},{16,17,18},{19,20,21},{22,23,24},{25,26,27}};
+        fill(inv,Material.GRAY_STAINED_GLASS_PANE," ");
+        for(int slot=9;slot<=26;slot++) inv.setItem(slot,null);
+        for(int slot=36;slot<=44;slot++) inv.setItem(slot,null);
+        EnchantType[] types=EnchantType.values(); int[][] rows={{9,10,11},{12,13,14},{15,16,17},{18,19,20},{21,22,23},{24,25,26}};
         for(int i=0;i<types.length;i++) {
             EnchantType type=types[i]; int[] row=rows[i];
-            inv.setItem(row[0],adminItem(Material.REDSTONE,"§c-1 XP level",List.of("§7Shift-click to change by 10")));
-            inv.setItem(row[1],adminItem(type.icon,"§e"+type.label,List.of(
-                    "§7Price: §e"+price(type)+" levels",
-                    "§7In shop: "+(shopItemEnabled(type)?"§aYes":"§cNo"),
-                    "§fClick to toggle shop listing")));
-            inv.setItem(row[2],adminItem(Material.EMERALD,"§a+1 XP level",List.of("§7Shift-click to change by 10")));
+            inv.setItem(row[0],adminItem(Material.RED_STAINED_GLASS_PANE,"§c− Price",List.of("§7Click: −1 level", "§7Shift-click: −10 levels")));
+            inv.setItem(row[1],adminItem(type.icon,"§e§l"+type.label,List.of(
+                    "§7Shop price  §e"+price(type)+" levels",
+                    "§7Visibility  "+(shopItemEnabled(type)?"§aShown":"§cHidden"), "",
+                    "§fClick to toggle visibility")));
+            inv.setItem(row[2],adminItem(Material.LIME_STAINED_GLASS_PANE,"§a+ Price",List.of("§7Click: +1 level", "§7Shift-click: +10 levels")));
         }
-        inv.setItem(0,adminItem(Material.REDSTONE,"§cBase apply cost: -1",List.of("§7Shift-click changes by 5")));
-        inv.setItem(1,adminItem(Material.EXPERIENCE_BOTTLE,"§eBase apply cost: "+applyBaseCost()+" levels",List.of("§7First enchantment on a tool")));
-        inv.setItem(2,adminItem(Material.EMERALD,"§aBase apply cost: +1",List.of("§7Shift-click changes by 5")));
-        inv.setItem(3,adminItem(Material.REDSTONE,"§cAdded cost: -1",List.of("§7Per enchantment already on tool", "§7Shift-click changes by 5")));
-        inv.setItem(4,adminItem(Material.EXPERIENCE_BOTTLE,"§eAdded cost: "+applyStepCost()+" levels",List.of("§7Example: 2 base + 2 per existing enchant = 2, 4, 6")));
-        inv.setItem(5,adminItem(Material.EMERALD,"§aAdded cost: +1",List.of("§7Shift-click changes by 5")));
-        inv.setItem(6,adminItem(Material.REDSTONE,"§cMax enchants: -1",List.of("§7Minimum 1", "§7Shift-click changes by 2")));
-        inv.setItem(7,adminItem(Material.BOOK,"§eMax per tool: "+maxCustomEnchants(),List.of("§7Maximum 6")));
-        inv.setItem(8,adminItem(Material.EMERALD,"§aMax enchants: +1",List.of("§7Shift-click changes by 2")));
-        inv.setItem(45,adminItem(Material.CHEST,"§eEnchant shop: "+(getConfig().getBoolean("shop.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to toggle")));
-        inv.setItem(47,adminItem(Material.ENDER_PEARL,"§eTPA commands: "+(getConfig().getBoolean("tpa.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to toggle")));
-        inv.setItem(53,adminItem(Material.BARRIER,"§cClose",List.of()));
-        inv.setItem(49,adminItem(Material.EXPERIENCE_BOTTLE,"§bHealer settings",List.of("§7Repair rate: "+getConfig().getDouble("healer.xp-per-durability",1.5)+" XP points per durability","§7Change in config.yml")));
+        inv.setItem(4,adminItem(Material.NETHER_STAR,"§d§lEnchantment Shop Controls",List.of("§7Set book prices and choose which books", "§7players can see in the shop.")));
+        inv.setItem(36,adminItem(Material.RED_STAINED_GLASS_PANE,"§c− Base application cost",List.of("§7Click: −1 level", "§7Shift-click: −5 levels")));
+        inv.setItem(37,adminItem(Material.EXPERIENCE_BOTTLE,"§eBase cost: "+applyBaseCost()+" levels",List.of("§7Application cost for the first book")));
+        inv.setItem(38,adminItem(Material.LIME_STAINED_GLASS_PANE,"§a+ Base application cost",List.of("§7Click: +1 level", "§7Shift-click: +5 levels")));
+        inv.setItem(39,adminItem(Material.RED_STAINED_GLASS_PANE,"§c− Added cost",List.of("§7Click: −1 level", "§7Shift-click: −5 levels")));
+        inv.setItem(40,adminItem(Material.EXPERIENCE_BOTTLE,"§eAdded cost: "+applyStepCost()+" levels",List.of("§7Per enchant already on the item")));
+        inv.setItem(41,adminItem(Material.LIME_STAINED_GLASS_PANE,"§a+ Added cost",List.of("§7Click: +1 level", "§7Shift-click: +5 levels")));
+        inv.setItem(42,adminItem(Material.RED_STAINED_GLASS_PANE,"§c− Enchant limit",List.of("§7Click: −1", "§7Shift-click: −2")));
+        inv.setItem(43,adminItem(Material.BOOK,"§eMax per item: "+maxCustomEnchants(),List.of("§7Choose the custom enchant limit")));
+        inv.setItem(44,adminItem(Material.LIME_STAINED_GLASS_PANE,"§a+ Enchant limit",List.of("§7Click: +1", "§7Shift-click: +2")));
+        inv.setItem(47,adminItem(Material.CHEST,"§eShop: "+(getConfig().getBoolean("shop.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to enable or disable the shop")));
+        inv.setItem(49,adminItem(Material.ENDER_PEARL,"§eTPA: "+(getConfig().getBoolean("tpa.enabled",true)?"§aON":"§cOFF"),List.of("§7Click to enable or disable this plugin's TPA")));
+        inv.setItem(51,adminItem(Material.EXPERIENCE_BOTTLE,"§bHealer",List.of("§7One book works on supported tools", "§7and armor. Sneak + right-click to repair.", "§7Rate: "+getConfig().getDouble("healer.xp-per-durability",1.5)+" XP points per durability")));
+        inv.setItem(53,adminItem(Material.BARRIER,"§cClose",List.of("§7Close this menu")));
         p.openInventory(inv);
     }
     private ItemStack adminItem(Material material,String name,List<String> lore) {
@@ -226,16 +260,16 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         if(!(e.getWhoClicked() instanceof Player p) || !p.hasPermission("customenchants.admin")) return;
         int slot=e.getRawSlot();
         if(slot<0 || slot>=e.getView().getTopInventory().getSize()) return;
-        if(slot==0 || slot==2) changeSetting("application.base-cost",applyBaseCost(),slot==0?-1:1,e.isShiftClick()?5:1,0,100);
-        else if(slot==3 || slot==5) changeSetting("application.additional-cost",applyStepCost(),slot==3?-1:1,e.isShiftClick()?5:1,0,100);
-        else if(slot==6 || slot==8) changeSetting("application.max-per-tool",maxCustomEnchants(),slot==6?-1:1,e.isShiftClick()?2:1,1,3);
-        else if(slot==45) getConfig().set("shop.enabled",!getConfig().getBoolean("shop.enabled",true));
-        else if(slot==47) getConfig().set("tpa.enabled",!getConfig().getBoolean("tpa.enabled",true));
+        if(slot==36 || slot==38) changeSetting("application.base-cost",applyBaseCost(),slot==36?-1:1,e.isShiftClick()?5:1,0,100);
+        else if(slot==39 || slot==41) changeSetting("application.additional-cost",applyStepCost(),slot==39?-1:1,e.isShiftClick()?5:1,0,100);
+        else if(slot==42 || slot==44) changeSetting("application.max-per-tool",maxCustomEnchants(),slot==42?-1:1,e.isShiftClick()?2:1,1,6);
+        else if(slot==47) getConfig().set("shop.enabled",!getConfig().getBoolean("shop.enabled",true));
+        else if(slot==49) getConfig().set("tpa.enabled",!getConfig().getBoolean("tpa.enabled",true));
         else if(slot==53) { p.closeInventory(); return; }
-        else if(slot==49) { p.sendMessage("§eHealer repair rate is configured in plugins/CustomEnchants/config.yml (healer.xp-per-durability)."); return; }
+        else if(slot==51) { p.sendMessage("§eHealer repair rate is configured in plugins/CustomEnchants/config.yml (healer.xp-per-durability)."); return; }
         else {
             EnchantType type=null; int direction=0; boolean toggle=false;
-            int[][] rows={{10,11,12},{13,14,15},{16,17,18},{19,20,21},{22,23,24},{25,26,27}};
+            int[][] rows={{9,10,11},{12,13,14},{15,16,17},{18,19,20},{21,22,23},{24,25,26}};
             for(int i=0;i<rows.length;i++) {
                 if(slot==rows[i][0]) { type=EnchantType.values()[i]; direction=-1; }
                 else if(slot==rows[i][1]) { type=EnchantType.values()[i]; toggle=true; }

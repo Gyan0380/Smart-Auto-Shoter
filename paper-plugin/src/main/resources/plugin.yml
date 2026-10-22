@@ -12,6 +12,9 @@ commands:
     description: Open the CustomEnchants admin settings menu.
     permission: customenchants.admin
     usage: /enchantadmin
+  nightvision:
+    description: Toggle night vision on or off.
+    usage: /nightvision <on|off>
 permissions:
   customenchants.shop:
     description: Open and purchase from the enchant shop.

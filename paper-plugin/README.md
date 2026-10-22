@@ -18,6 +18,7 @@ Application XP costs rise per existing custom enchant: defaults are 2 levels for
 ## Commands
 
 - `/enchantshop` or `/eshop` opens the shop.
+- `/nightvision on` enables night vision for the player; `/nightvision off` removes it. Both options are available to all players.
 - `/enchantshop give <player> <lumberjack|veinminer|3x3miner|longarm|lessdamage|healer>` gives a book (admin).
 - `/enchantadmin` opens the settings GUI (admin). Click books to show/hide them, use +/- to change prices, and adjust application XP costs and maximum enchants per tool. Shift-click changes values in larger steps. Toggle the shop and this plugin's TPA commands from the same menu.
 - `/tpa <player>` requests to teleport to a player.

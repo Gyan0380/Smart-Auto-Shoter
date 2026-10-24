@@ -51,6 +51,12 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class CustomEnchants extends JavaPlugin implements Listener {
     private static final String SHOP_TITLE = "§8✦  Enchantment Shop  ✦";
     private static final String ADMIN_TITLE = "§8✦  Enchantment Control  ✦";
+    private static final Set<Material> AREA_MINE_PROTECTED = Set.of(
+            Material.BEDROCK, Material.NETHER_PORTAL, Material.END_PORTAL, Material.END_GATEWAY,
+            Material.END_PORTAL_FRAME, Material.BARRIER, Material.COMMAND_BLOCK,
+            Material.CHAIN_COMMAND_BLOCK, Material.REPEATING_COMMAND_BLOCK,
+            Material.STRUCTURE_BLOCK, Material.JIGSAW, Material.STRUCTURE_VOID
+    );
     private NamespacedKey bookKey;
     private NamespacedKey toolKey;
     private NamespacedKey nightVisionKey;
@@ -60,6 +66,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     private final Map<UUID,BukkitTask> warmups = new HashMap<>();
     private final Map<UUID,Long> tpaCooldowns = new HashMap<>();
     private final Map<UUID,Map<String,Double>> longArmOriginalRanges = new HashMap<>();
+    private boolean longArmWarningLogged;
 
     @Override public void onEnable() {
         saveDefaultConfig();
@@ -77,6 +84,10 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         getServer().getScheduler().runTaskTimer(this, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) updateLongArmRange(player);
         }, 1L, 10L);
+    }
+
+    @Override public void onDisable() {
+        for (Player player : Bukkit.getOnlinePlayers()) restoreLongArmRange(player);
     }
 
     private enum EnchantType {
@@ -158,18 +169,18 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         }
         if (args[0].equalsIgnoreCase("apply") && args.length == 2 && sender instanceof Player p) {
             EnchantType type=EnchantType.parse(args[1]);
-            if (type == null) { p.sendMessage("§cChoose lumberjack, veinminer, or 3x3miner."); return true; }
+            if (type == null) { p.sendMessage("§cChoose a valid enchantment: lumberjack, veinminer, 3x3miner, longarm, lessdamage, or healer."); return true; }
             applyBook(p, type); return true;
         }
         if (args[0].equalsIgnoreCase("give") && args.length == 3) {
             if (!sender.hasPermission("customenchants.admin")) { sender.sendMessage("§cYou don't have permission."); return true; }
             Player target=getServer().getPlayerExact(args[1]); EnchantType type=EnchantType.parse(args[2]);
-            if (target == null || type == null) { sender.sendMessage("§cUsage: /enchantshop give <online-player> <lumberjack|veinminer|3x3miner>"); return true; }
+            if (target == null || type == null) { sender.sendMessage("§cUsage: /enchantshop give <online-player> <lumberjack|veinminer|3x3miner|longarm|lessdamage|healer>"); return true; }
             target.getInventory().addItem(book(type)); target.sendMessage("§aYou received a "+type.label+" book.");
             sender.sendMessage("§aGave "+type.label+" to "+target.getName()+"."); return true;
         }
         sender.sendMessage("§e/enchantshop §7- open shop");
-        sender.sendMessage("§e/enchantshop apply <lumberjack|veinminer|3x3miner> §7- apply book to held tool");
+        sender.sendMessage("§e/enchantshop apply <enchant> §7- apply a book from your inventory to the held tool");
         sender.sendMessage("§e/enchantshop give <player> <enchant> §7- admin"); return true;
     }
 
@@ -200,7 +211,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             case LUMBERJACK -> "Chop connected logs.";
             case VEINMINER -> "Mine connected matching ores.";
             case MINER3 -> "Mine a 3x3 plane.";
-            case LONG_ARM -> "Extends block mining reach while held.";
+            case LONG_ARM -> "Extends block interaction reach while held.";
             case LESS_DAMAGE -> "Chance to reduce equipment durability loss.";
             case HEALER -> "Sneak + right-click to repair with XP points.";
         };
@@ -549,28 +560,42 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
                 || types.contains(EnchantType.MINER3) && isPickaxe(tool)) {
             processing.add(p.getUniqueId());
             try {
-                if(types.contains(EnchantType.LUMBERJACK) && isLog(origin.getType())) lumberjack(event,p,origin);
-                if(types.contains(EnchantType.VEINMINER) && isOre(origin.getType())) connected(event,p,origin,false);
-                if(types.contains(EnchantType.MINER3)) mine3x3(event,p,origin);
+                if(types.contains(EnchantType.LUMBERJACK) && isLog(origin.getType())) lumberjack(p,origin);
+                if(types.contains(EnchantType.VEINMINER) && isOre(origin.getType())) connected(p,origin);
+                if(types.contains(EnchantType.MINER3)) mine3x3(p,origin);
             } finally { processing.remove(p.getUniqueId()); }
         }
     }
 
-    private void lumberjack(BlockBreakEvent root, Player p, Block origin) {
+    private void lumberjack(Player p, Block origin) {
         Material logType=origin.getType();
         List<Block> logs=collect(origin,b->b.getType()==logType,getConfig().getInt("limits.lumberjack",128));
         List<Block> leaves=new ArrayList<>(); Set<Block> seen=new HashSet<>(logs);
+        Set<Block> treeSnow=new HashSet<>(); Set<Block> vines=new HashSet<>();
         int radius=Math.max(1,Math.min(8,getConfig().getInt("lumberjack.leaf-radius",6)));
         for(Block log:logs) for(int x=-radius;x<=radius;x++) for(int y=-radius;y<=radius;y++) for(int z=-radius;z<=radius;z++) {
-            Block b=log.getRelative(x,y,z); if(isLeaves(b.getType())&&seen.add(b)) leaves.add(b);
+            Block b=log.getRelative(x,y,z);
+            if(isLeaves(b.getType())&&seen.add(b)) leaves.add(b);
         }
-        for(Block b:logs) if(b!=origin&&!breakAndDrop(root,p,b,false)) return;
-        for(Block b:leaves) if(!breakAndDrop(root,p,b,true)) return;
+        List<Block> treeParts=new ArrayList<>(logs); treeParts.addAll(leaves);
+        BlockFace[] vineFaces={BlockFace.NORTH,BlockFace.SOUTH,BlockFace.EAST,BlockFace.WEST,BlockFace.DOWN};
+        for(Block part:treeParts) {
+            Block snow=part.getRelative(BlockFace.UP);
+            if(snow.getType()==Material.SNOW) treeSnow.add(snow);
+            for(BlockFace face:vineFaces) {
+                Block adjacent=part.getRelative(face);
+                if(adjacent.getType()==Material.VINE) vines.add(adjacent);
+            }
+        }
+        for(Block b:logs) if(b!=origin&&!breakAndDrop(p,b,false)) return;
+        for(Block snow:treeSnow) if(!breakAndDrop(p,snow,true)) return;
+        for(Block vine:vines) if(!breakAndDrop(p,vine,true)) return;
+        for(Block b:leaves) if(!breakAndDrop(p,b,true)) return;
     }
-    private void connected(BlockBreakEvent root, Player p, Block origin, boolean ignored) {
+    private void connected(Player p, Block origin) {
         Material material=origin.getType();
         for(Block b:collect(origin,x->x.getType()==material,getConfig().getInt("limits.veinminer",64)))
-            if(b!=origin&&!breakAndDrop(root,p,b,false)) return;
+            if(b!=origin&&!breakAndDrop(p,b,false)) return;
     }
     private interface BlockTest { boolean test(Block b); }
     private List<Block> collect(Block origin, BlockTest test, int cap) {
@@ -580,7 +605,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             for(BlockFace f:BlockFace.values()) if(f!=BlockFace.SELF) { Block n=b.getRelative(f); if(seen.add(n)&&test.test(n)) queue.addLast(n); }
         } return out;
     }
-    private void mine3x3(BlockBreakEvent root, Player p, Block origin) {
+    private void mine3x3(Player p, Block origin) {
         Vector direction=p.getEyeLocation().getDirection(); List<Block> plane=new ArrayList<>();
         double ax=Math.abs(direction.getX()), ay=Math.abs(direction.getY()), az=Math.abs(direction.getZ());
         // Aim mostly up/down to clear a horizontal plane; otherwise clear a wall perpendicular to aim.
@@ -591,18 +616,27 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         } else {
             for(int x=-1;x<=1;x++) for(int y=-1;y<=1;y++) if(x!=0||y!=0) plane.add(origin.getRelative(x,y,0));
         }
-        for(Block b:plane) if(!b.getType().isAir()&&!breakAndDrop(root,p,b,false)) return;
+        for(Block b:plane) if(!b.getType().isAir()&&!breakAndDrop(p,b,false)) return;
     }
-    private boolean breakAndDrop(BlockBreakEvent root, Player p, Block block, boolean leaves) {
+    private boolean breakAndDrop(Player p, Block block, boolean noDurability) {
         if(block.getType().isAir()) return true;
+        Material material=block.getType();
+        if(block.isLiquid() || AREA_MINE_PROTECTED.contains(material) || isActivePortalFrame(block)) return true;
         ItemStack tool=p.getInventory().getItemInMainHand();
         if(tool.getType().isAir()) return false;
         BlockBreakEvent extra=new BlockBreakEvent(block,p); getServer().getPluginManager().callEvent(extra); if(extra.isCancelled())return true;
-        Collection<ItemStack> drops=leaves?block.getDrops():block.getDrops(tool,p);
-        block.setType(Material.AIR,false);
-        for(ItemStack drop:drops) if(leaves) { var overflow=p.getInventory().addItem(drop); overflow.values().forEach(i->p.getWorld().dropItemNaturally(block.getLocation(),i)); }
+        Collection<ItemStack> drops=extra.isDropItems()?(noDurability?block.getDrops():block.getDrops(tool,p)):List.of();
+        // Apply world physics so gravity blocks fall and neighboring fluids update normally.
+        block.setType(Material.AIR, true);
+        for(ItemStack drop:drops) if(noDurability) { var overflow=p.getInventory().addItem(drop); overflow.values().forEach(i->p.getWorld().dropItemNaturally(block.getLocation(),i)); }
         else p.getWorld().dropItemNaturally(block.getLocation(),drop);
-        return leaves || damageTool(p);
+        return noDurability || damageTool(p);
+    }
+    private boolean isActivePortalFrame(Block block) {
+        if(block.getType()!=Material.OBSIDIAN) return false;
+        for(BlockFace face:new BlockFace[]{BlockFace.NORTH,BlockFace.SOUTH,BlockFace.EAST,BlockFace.WEST,BlockFace.UP,BlockFace.DOWN})
+            if(block.getRelative(face).getType()==Material.NETHER_PORTAL) return true;
+        return false;
     }
     private boolean damageTool(Player p) {
         ItemStack tool=p.getInventory().getItemInMainHand();
@@ -673,6 +707,10 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             instanceClass.getMethod("setBaseValue",double.class).invoke(instance,saved.get(attributeName)+bonus);
         } catch (ReflectiveOperationException | IllegalArgumentException ignored) {
             // Older Paper builds may not expose interaction-range attributes.
+            if (!longArmWarningLogged) {
+                getLogger().warning("Long Arm is unavailable because this server does not expose BLOCK_INTERACTION_RANGE.");
+                longArmWarningLogged = true;
+            }
         }
     }
     @SuppressWarnings({"unchecked","rawtypes"})
@@ -684,7 +722,12 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             if(instance==null) return;
             Class<?> instanceClass=Class.forName("org.bukkit.attribute.AttributeInstance");
             instanceClass.getMethod("setBaseValue",double.class).invoke(instance,value);
-        } catch (ReflectiveOperationException | IllegalArgumentException ignored) { }
+        } catch (ReflectiveOperationException | IllegalArgumentException ignored) {
+            if (!longArmWarningLogged) {
+                getLogger().warning("Could not restore the block interaction range while disabling Long Arm.");
+                longArmWarningLogged = true;
+            }
+        }
     }
 
     @EventHandler

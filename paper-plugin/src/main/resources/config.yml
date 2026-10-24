@@ -54,7 +54,8 @@ lumberjack:
   leaf-radius: 6
 
 
-# Long Arm mining reach bonus applies while holding an enchanted item in the main hand.
+# Adds block interaction reach while a Long Arm item is held in the main hand.
+# This affects block reach only; it does not change entity or combat reach.
 long-arm:
   block-range-bonus: 2.0
 

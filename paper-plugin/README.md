@@ -4,14 +4,14 @@ A Paper plugin with six custom enchant books, an XP shop, an expanded admin menu
 
 | Book | Tool | Effect | Default price |
 |---|---|---|---:|
-| Lumberjack | Axe or pickaxe | Breaks connected logs; nearby leaves break and their drops go directly into inventory | 10 levels |
+| Lumberjack | Axe or pickaxe | Breaks connected logs of the same type and nearby leaves; leaf drops go into inventory when space is available, with overflow dropped at the block | 10 levels |
 | Vein Miner | Pickaxe | Breaks connected blocks of the same ore type | 20 levels |
 | 3x3 Miner | Pickaxe | Breaks a 3×3 plane perpendicular to the direction you're aiming; looking up or down clears a horizontal plane | 30 levels |
-| Long Arm | Mining tools | Adds configurable block-mining reach while held in the main hand | 15 levels |
+| Long Arm | Mining tools | Adds configurable block interaction reach while held in the main hand; it does not change entity or combat reach | 15 levels |
 | Less Damage | Damageable tools and armor | Chance to negate durability damage, otherwise reduce it; small chance to restore 1 durability | 40 levels |
 | Healer | Damageable tools and armor | Sneak + right-click while holding the enchanted item to repair it using XP points | 25 levels |
 
-Tools display a glint and lore for each custom enchant. Different custom enchants can share a tool up to the configurable limit (default 6); duplicate enchants are blocked. Sneak while mining to temporarily disable all effects. Extra blocks each consume one durability point, with Unbreaking applied; Lumberjack leaves don't consume durability.
+Tools display a glint and lore for each custom enchant. Different custom enchants can share a tool up to the configurable limit (default 6); duplicate enchants are blocked. Sneak while mining to temporarily disable all effects. Extra blocks each consume one durability point, with Unbreaking applied; Lumberjack leaves and the snow layers above them don't consume durability. Area mining skips liquids, bedrock, portal blocks, and obsidian touching an active Nether portal frame. Breaking extra blocks applies normal physics, so sand and gravel fall when unsupported and nearby fluids update.
 
 Application XP costs rise per existing custom enchant: defaults are 2 levels for the first, 4 for the second, and 6 for the third. Apply by placing the book on the cursor and clicking a compatible tool in inventory, with an anvil, or using `/enchantshop apply <enchant>`.
 
@@ -29,11 +29,11 @@ TPA acceptance starts a warmup (default 5 seconds), and successful teleport star
 
 ## Configuration
 
-The plugin creates `plugins/CustomEnchants/config.yml`. Settings include `prices.*`, `application.base-cost`, `application.additional-cost`, `application.max-per-tool`, `long-arm.*`, `less-damage.*`, `healer.xp-per-durability`, `shop.enabled`, `shop.items.*.enabled`, `nightvision.enabled`, and `tpa.*`. TPA settings include request timeout, warmup, cooldown, cancel-on-move, and sound. The admin GUI saves changes immediately. Existing server configuration is not needed or modified by this plugin.
+The plugin creates and updates its own `plugins/CustomEnchants/config.yml`. Settings include `prices.*`, `application.base-cost`, `application.additional-cost`, `application.max-per-tool`, `long-arm.block-range-bonus`, `less-damage.*`, `healer.xp-per-durability`, `limits.lumberjack`, `limits.veinminer`, `lumberjack.leaf-radius`, `shop.enabled`, `shop.items.*.enabled`, `nightvision.enabled`, and `tpa.*`. TPA settings include request timeout, warmup, cooldown, cancel-on-move, and sound. The admin GUI saves changes immediately. It does not edit other plugins' configuration files.
 
 ## Build and install
 
-Requires JDK 25 and Gradle 8.14 or later. Run `gradle build`; the JAR is `build/libs/CustomEnchants-1.1.0.jar`. Install the JAR in the server's `plugins` directory and restart Paper 26.3 on Java 25.
+Requires JDK 25 and Gradle 9.7.0 (the version used by the included build workflow). From the repository root, run `gradle --no-daemon -p paper-plugin clean build`; the JAR is `paper-plugin/build/libs/CustomEnchants-1.1.0.jar`. Install it in the server's `plugins` directory and restart Paper 26.3 on Java 25.
 
 ## Permissions and compatibility
 

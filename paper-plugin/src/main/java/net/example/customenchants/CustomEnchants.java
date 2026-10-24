@@ -554,6 +554,10 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         Set<EnchantType> types=toolTypes(p.getInventory().getItemInMainHand());
         if (types.isEmpty()) return;
         Block origin=event.getBlock();
+        boolean breaksPortalFrame=isPortalFrameBlock(origin);
+        if(breaksPortalFrame) Bukkit.getScheduler().runTask(this,()->{
+            if(origin.getType()!=Material.OBSIDIAN) clearPortalFromFrame(origin);
+        });
         ItemStack tool=p.getInventory().getItemInMainHand();
         if(types.contains(EnchantType.LUMBERJACK) && (isAxe(tool)||isPickaxe(tool)) && isLog(origin.getType())
                 || types.contains(EnchantType.VEINMINER) && isPickaxe(tool) && isOre(origin.getType())
@@ -621,22 +625,31 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     private boolean breakAndDrop(Player p, Block block, boolean noDurability) {
         if(block.getType().isAir()) return true;
         Material material=block.getType();
-        if(block.isLiquid() || AREA_MINE_PROTECTED.contains(material) || isActivePortalFrame(block)) return true;
+        if(block.isLiquid() || AREA_MINE_PROTECTED.contains(material)) return true;
         ItemStack tool=p.getInventory().getItemInMainHand();
         if(tool.getType().isAir()) return false;
         BlockBreakEvent extra=new BlockBreakEvent(block,p); getServer().getPluginManager().callEvent(extra); if(extra.isCancelled())return true;
+        boolean breaksPortalFrame=isPortalFrameBlock(block);
         Collection<ItemStack> drops=extra.isDropItems()?(noDurability?block.getDrops():block.getDrops(tool,p)):List.of();
         // Apply world physics so gravity blocks fall and neighboring fluids update normally.
         block.setType(Material.AIR, true);
+        if(breaksPortalFrame) clearPortalFromFrame(block);
         for(ItemStack drop:drops) if(noDurability) { var overflow=p.getInventory().addItem(drop); overflow.values().forEach(i->p.getWorld().dropItemNaturally(block.getLocation(),i)); }
         else p.getWorld().dropItemNaturally(block.getLocation(),drop);
         return noDurability || damageTool(p);
     }
-    private boolean isActivePortalFrame(Block block) {
+    private boolean isPortalFrameBlock(Block block) {
         if(block.getType()!=Material.OBSIDIAN) return false;
         for(BlockFace face:new BlockFace[]{BlockFace.NORTH,BlockFace.SOUTH,BlockFace.EAST,BlockFace.WEST,BlockFace.UP,BlockFace.DOWN})
             if(block.getRelative(face).getType()==Material.NETHER_PORTAL) return true;
         return false;
+    }
+    private void clearPortalFromFrame(Block frame) {
+        for(BlockFace face:new BlockFace[]{BlockFace.NORTH,BlockFace.SOUTH,BlockFace.EAST,BlockFace.WEST,BlockFace.UP,BlockFace.DOWN}) {
+            Block portal=frame.getRelative(face);
+            if(portal.getType()!=Material.NETHER_PORTAL) continue;
+            for(Block part:collect(portal,b->b.getType()==Material.NETHER_PORTAL,512)) part.setType(Material.AIR,true);
+        }
     }
     private boolean damageTool(Player p) {
         ItemStack tool=p.getInventory().getItemInMainHand();

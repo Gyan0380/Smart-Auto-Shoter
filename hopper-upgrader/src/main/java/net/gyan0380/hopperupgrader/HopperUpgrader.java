@@ -5,7 +5,9 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.Container;
+import org.bukkit.block.data.Directional;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -59,6 +61,10 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        if (getConfig().getInt("links.max-per-hopper", 3) == 3) {
+            getConfig().set("links.max-per-hopper", 4);
+            saveConfig();
+        }
         dataFile = new File(getDataFolder(), "hoppers.yml");
         loadHoppers();
         getServer().getPluginManager().registerEvents(this, this);
@@ -68,6 +74,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         saveTask = getServer().getScheduler().runTaskTimer(this, () -> {
             if (dataDirty) saveHoppers();
         }, DATA_SAVE_INTERVAL_TICKS, DATA_SAVE_INTERVAL_TICKS);
+        getServer().getScheduler().runTask(this, () -> upgraded.forEach(this::updateNozzle));
         getLogger().info("Loaded " + upgraded.size() + " upgraded hopper(s).");
     }
 
@@ -83,7 +90,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         sender.sendMessage("§6§lHopper Upgrader §7- faster item routing for Paper");
         sender.sendMessage("§e1. §fHold a copper hoe and sneak-right-click a hopper to upgrade/open it.");
         sender.sendMessage("§e2. §fUse the GUI to store items in five extra slots.");
-        sender.sendMessage("§e3. §fClick Link Output, then sneak-right-click a container beside the hopper.");
+        sender.sendMessage("§e3. §fClick Link Output, then sneak-right-click an adjacent container on one of four sides.");
         sender.sendMessage("§e4. §fAdd up to " + maxLinks() + " outputs. Click one in the menu to unlink it.");
         sender.sendMessage("§7Hoppers pull from above and move up to "
                 + transferAmount() + " items every " + getConfig().getLong("transfer.interval-ticks", 2)
@@ -125,7 +132,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         if (sourceKey != null) {
             event.setCancelled(true);
             if (!player.isSneaking()) {
-                player.sendMessage("§eSneak and right-click a container beside the hopper.");
+                player.sendMessage("§eSneak and right-click a container on one of its four horizontal sides.");
                 return;
             }
             addLink(player, sourceKey, clicked);
@@ -207,14 +214,15 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             }
             linkMode.put(player.getUniqueId(), menu.locationKey);
             player.closeInventory();
-            player.sendMessage("§aLink mode ready. Sneak-right-click a container beside this hopper.");
-            player.sendMessage("§7The target must be exactly one block away.");
+            player.sendMessage("§aLink mode ready. Sneak-right-click an adjacent container on one of its four horizontal sides.");
+            player.sendMessage("§7Choose an open horizontal side; links must be directly adjacent.");
             return;
         }
-        if (slot >= FIRST_LINK_SLOT && slot < FIRST_LINK_SLOT + 3) {
+        if (slot >= FIRST_LINK_SLOT && slot < FIRST_LINK_SLOT + 4) {
             int linkIndex = slot - FIRST_LINK_SLOT;
             if (linkIndex < hopper.links.size()) {
                 String removed = hopper.links.remove(linkIndex);
+                updateNozzle(menu.locationKey, hopper);
                 saveHoppers();
                 refreshMenu(menu, hopper);
                 player.sendMessage("§eOutput unlinked: §f" + displayName(removed));
@@ -261,6 +269,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             return;
         }
         source.links.add(targetKey);
+        updateNozzle(sourceKey, source);
         linkMode.remove(player.getUniqueId());
         saveHoppers();
         player.sendMessage("§aOutput linked. Items will be distributed between connected containers.");
@@ -268,11 +277,40 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
     }
 
     private boolean isOneBlockAway(Block first, Block second) {
-        if (!first.getWorld().equals(second.getWorld())) return false;
-        int distance = Math.abs(first.getX() - second.getX())
-                + Math.abs(first.getY() - second.getY())
-                + Math.abs(first.getZ() - second.getZ());
-        return distance == 1;
+        return first.getWorld().equals(second.getWorld()) && faceTo(first, second) != null;
+    }
+
+    private BlockFace faceTo(Block first, Block second) {
+        if (first.getY() != second.getY()) return null;
+        int dx = second.getX() - first.getX();
+        int dz = second.getZ() - first.getZ();
+        if (dx == 1 && dz == 0) return BlockFace.EAST;
+        if (dx == -1 && dz == 0) return BlockFace.WEST;
+        if (dx == 0 && dz == 1) return BlockFace.SOUTH;
+        if (dx == 0 && dz == -1) return BlockFace.NORTH;
+        return null;
+    }
+
+    private void updateNozzle(String hopperKey, UpgradedHopper hopper) {
+        Block block = resolve(hopperKey);
+        if (block == null || block.getType() != Material.HOPPER) return;
+
+        BlockFace facing = BlockFace.DOWN;
+        for (int index = hopper.links.size() - 1; index >= 0; index--) {
+            Block target = resolve(hopper.links.get(index));
+            if (target == null) continue;
+            BlockFace linkedFace = faceTo(block, target);
+            if (linkedFace != null) {
+                facing = linkedFace;
+                break;
+            }
+        }
+
+        if (block.getBlockData() instanceof Directional directional
+                && directional.getFaces().contains(facing)) {
+            directional.setFacing(facing);
+            block.setBlockData(directional, false);
+        }
     }
     private void openMenu(Player player, String locationKey) {
         UpgradedHopper hopper = upgraded.get(locationKey);
@@ -313,14 +351,16 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         }
 
         inventory.setItem(LINK_BUTTON_SLOT, item(Material.COMPASS, "§bLink an output", List.of(
-                "§7Connect to a container beside this hopper.",
+                "§7Connect one container on each horizontal side.",
                 "§7Up to " + maxLinks() + " outputs per hopper.")));
 
-        for (int index = 0; index < 3; index++) {
+        for (int index = 0; index < 4; index++) {
             int menuSlot = FIRST_LINK_SLOT + index;
             if (index < hopper.links.size()) {
+                String targetKey = hopper.links.get(index);
                 inventory.setItem(menuSlot, item(Material.CHEST, "§eOutput " + (index + 1), List.of(
-                        "§7" + displayName(hopper.links.get(index)), "§cClick to unlink")));
+                        "§7Side: " + linkedFaceName(menu.locationKey, targetKey),
+                        "§7" + displayName(targetKey), "§cClick to unlink")));
             } else {
                 inventory.setItem(menuSlot, item(Material.BLACK_STAINED_GLASS_PANE, "§8No output", List.of()));
             }
@@ -696,9 +736,16 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
     }
 
     private int maxLinks() {
-        return Math.max(1, Math.min(3, getConfig().getInt("links.max-per-hopper", 3)));
+        return Math.max(1, Math.min(4, getConfig().getInt("links.max-per-hopper", 4)));
     }
 
+    private String linkedFaceName(String hopperKey, String targetKey) {
+        Block hopper = resolve(hopperKey);
+        Block target = resolve(targetKey);
+        if (hopper == null || target == null) return "unknown";
+        BlockFace face = faceTo(hopper, target);
+        return face == null ? "unknown" : face.name();
+    }
     private int transferAmount() {
         return Math.max(1, Math.min(64, getConfig().getInt("transfer.items-per-cycle", 4)));
     }

@@ -5,5 +5,4 @@ transfer:
 
 # Each upgraded hopper can send its stored items to up to this many containers.
 links:
-  max-per-hopper: 3
-
+  max-per-hopper: 4

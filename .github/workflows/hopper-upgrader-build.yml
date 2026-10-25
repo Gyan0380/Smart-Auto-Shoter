@@ -1,0 +1,33 @@
+name: Build HopperUpgrader
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+    paths:
+      - "hopper-upgrader/**"
+      - ".github/workflows/hopper-upgrader-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-hopper-upgrader:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.7.0"
+      - name: Build plugin
+        run: gradle --no-daemon -p hopper-upgrader clean build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HopperUpgrader-Paper-26.3
+          path: hopper-upgrader/build/libs/HopperUpgrader-*.jar
+          if-no-files-found: error
+

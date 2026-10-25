@@ -1,0 +1,9 @@
+# How often upgraded hoppers move items (in server ticks; 20 ticks = 1 second).
+transfer:
+  interval-ticks: 2
+  items-per-cycle: 4
+
+# Each upgraded hopper can send its stored items to up to this many containers.
+links:
+  max-per-hopper: 3
+

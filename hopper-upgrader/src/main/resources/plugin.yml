@@ -1,0 +1,15 @@
+name: HopperUpgrader
+version: 1.0.0
+main: net.gyan0380.hopperupgrader.HopperUpgrader
+api-version: '26.3'
+description: Faster, multi-output hoppers with five extra storage slots.
+commands:
+  hopperupgrader:
+    description: Explains how to upgrade and configure hoppers.
+    aliases: [hu, hupgrader]
+    usage: /hopperupgrader
+permissions:
+  hopperupgrader.use:
+    description: Upgrade and configure hoppers with a copper hoe.
+    default: true
+

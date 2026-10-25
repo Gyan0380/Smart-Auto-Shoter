@@ -490,13 +490,16 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             int moved = pullFromAbove(block, hopper, budget);
             if (hopper.links.isEmpty()) {
                 hopper.bufferPrimed = false;
-            } else if (!hopper.bufferPrimed && isInventoryFull(hopperBlockInventory(block))) {
-                hopper.bufferPrimed = true;
-                dataDirty = true;
-            }
-            if (hopper.bufferPrimed) {
-                moved += pushNormalToOutputs(block, hopper, Math.max(0, budget - moved));
                 moved += pushToOutputs(block, hopper, Math.max(0, budget - moved));
+            } else {
+                if (!hopper.bufferPrimed && isInventoryFull(hopperBlockInventory(block))) {
+                    hopper.bufferPrimed = true;
+                    dataDirty = true;
+                }
+                if (hopper.bufferPrimed) {
+                    moved += pushNormalToOutputs(block, hopper, Math.max(0, budget - moved));
+                    moved += pushToOutputs(block, hopper, Math.max(0, budget - moved));
+                }
             }
             if (moved > 0) dataDirty = true;
         }

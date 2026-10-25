@@ -1,16 +1,16 @@
 # Hopper Upgrader
 
-Hopper Upgrader adds a five-slot buffer and faster item routing to regular Paper hoppers. You can link one upgraded hopper to as many as three containers.
+Hopper Upgrader adds faster transfers and five extra storage slots to Paper hoppers. Each upgraded hopper can link its bonus storage to as many as three nearby containers.
 
 ## Getting started
 
 1. Copy `HopperUpgrader-1.0.0.jar` into the server's `plugins` folder, then restart Paper.
-2. Hold a copper hoe, crouch, and right-click a hopper. The first use upgrades it and opens its menu; repeat the same action to open the menu later.
-3. Shift-click items from your inventory into the five bonus slots. You can also pick up a stack and place it in a bonus slot. An upgraded hopper pulls items from a container above it into this buffer.
-4. To add a destination, click **Link an output**, then crouch and right-click a chest, barrel, furnace, or another hopper. Repeat for up to three destinations. The hopper shares its buffered items among the linked containers. Click a listed destination in the menu to unlink it.
-5. With no linked destinations, buffered items go to a container below the hopper. The hopper's regular five slots and normal Minecraft transfer behavior continue to work.
+2. Hold a copper hoe, crouch, and right-click a hopper. This upgrades the hopper and opens its menu. Repeat the same action to open the menu later.
+3. The first row in the menu is the hopper's real five-slot inventory. Items placed there keep normal hopper behavior, so farms and other hopper chains continue to work. Shift-clicking from your inventory fills these slots first.
+4. The second row is the five-slot bonus buffer. Use **Link an output**, then crouch-right-click a chest, barrel, furnace, or hopper directly beside the upgraded hopper. You can add up to three adjacent outputs. Items in the bonus buffer are sent to those outputs in turn. Click an output in the menu to unlink it.
+5. If no outputs are linked, bonus-buffer items go to a container below the hopper. Items in the normal hopper slots always follow standard Minecraft hopper routing.
 
-By default, the plugin checks upgraded hoppers every two ticks and moves up to four items per check. Furnace inputs go into the input slot, and fuel goes into the fuel slot. Transfers raise Paper's inventory-move event so protection plugins can cancel them.
+By default, the plugin checks upgraded hoppers every two ticks and moves up to four items per check from a container above into the hopper's normal inventory. This supplements the usual hopper transfer. Furnace inputs go into the input slot and fuel goes into the fuel slot. Transfers raise Paper's inventory-move event so protection plugins can cancel them.
 
 Use `/hopperupgrader` for the in-game instructions. `/hu` and `/hupgrader` are aliases. Upgrades, bonus items, and links are saved in `plugins/HopperUpgrader/hoppers.yml` and remain after a restart.
 

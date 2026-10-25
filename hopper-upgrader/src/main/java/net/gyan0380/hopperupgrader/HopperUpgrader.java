@@ -38,6 +38,12 @@ import java.util.UUID;
 
 public final class HopperUpgrader extends JavaPlugin implements Listener {
     private static final int EXTRA_SLOTS = 5;
+    private static final int MENU_SIZE = 36;
+    private static final int NORMAL_SLOT_START = 10;
+    private static final int EXTRA_SLOT_START = 19;
+    private static final int LINK_BUTTON_SLOT = 28;
+    private static final int FIRST_LINK_SLOT = 30;
+    private static final int CLOSE_BUTTON_SLOT = 35;
     private static final String MENU_TITLE = "§8Hopper Upgrader";
     private static final long DATA_SAVE_INTERVAL_TICKS = 100L;
 
@@ -76,7 +82,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         sender.sendMessage("§6§lHopper Upgrader §7- faster item routing for Paper");
         sender.sendMessage("§e1. §fHold a copper hoe and sneak-right-click a hopper to upgrade/open it.");
         sender.sendMessage("§e2. §fUse the GUI to store items in five extra slots.");
-        sender.sendMessage("§e3. §fClick Link Output, then sneak-right-click a chest, furnace, barrel, or hopper.");
+        sender.sendMessage("§e3. §fClick Link Output, then sneak-right-click a container beside the hopper.");
         sender.sendMessage("§e4. §fAdd up to " + maxLinks() + " outputs. Click one in the menu to unlink it.");
         sender.sendMessage("§7Hoppers pull from above and move up to "
                 + transferAmount() + " items every " + getConfig().getLong("transfer.interval-ticks", 2)
@@ -118,7 +124,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         if (sourceKey != null) {
             event.setCancelled(true);
             if (!player.isSneaking()) {
-                player.sendMessage("§eSneak and right-click a container to add it as an output.");
+                player.sendMessage("§eSneak and right-click a container beside the hopper.");
                 return;
             }
             addLink(player, sourceKey, clicked);
@@ -136,7 +142,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         upgraded.computeIfAbsent(key, ignored -> new UpgradedHopper());
         saveHoppers();
         openMenu(player, key);
-        player.sendMessage("§aHopper upgraded. Its five bonus slots and faster routing are ready.");
+        player.sendMessage("§aHopper upgraded. Its normal slots, five bonus slots, and faster routing are ready.");
     }
 
     @EventHandler
@@ -144,14 +150,17 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         if (!(event.getView().getTopInventory().getHolder() instanceof HopperMenu menu)) return;
         event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player player)) return;
+
         UpgradedHopper hopper = upgraded.get(menu.locationKey);
-        if (hopper == null) {
+        Inventory normalInventory = getHopperInventory(menu.locationKey);
+        if (hopper == null || normalInventory == null) {
             player.closeInventory();
             return;
         }
+
         if (event.getClickedInventory() != event.getView().getTopInventory()) {
             if (event.getClick().isShiftClick()) {
-                moveFromPlayerInventory(event, hopper);
+                moveFromPlayerInventory(event, normalInventory, hopper);
                 refreshMenu(menu, hopper);
                 saveHoppers();
             } else {
@@ -159,26 +168,32 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             }
             return;
         }
+
         int slot = event.getRawSlot();
-        if (slot >= 10 && slot <= 14) {
-            editStorage(player, hopper, slot - 10, event.getClick());
+        if (slot >= NORMAL_SLOT_START && slot < NORMAL_SLOT_START + EXTRA_SLOTS) {
+            editInventorySlot(player, normalInventory, slot - NORMAL_SLOT_START, event.getClick());
+            refreshMenu(menu, hopper);
+            return;
+        }
+        if (slot >= EXTRA_SLOT_START && slot < EXTRA_SLOT_START + EXTRA_SLOTS) {
+            editStorage(player, hopper, slot - EXTRA_SLOT_START, event.getClick());
             refreshMenu(menu, hopper);
             saveHoppers();
             return;
         }
-        if (slot == 18) {
+        if (slot == LINK_BUTTON_SLOT) {
             if (hopper.links.size() >= maxLinks()) {
                 player.sendMessage("§cThis hopper already has the maximum of " + maxLinks() + " outputs.");
                 return;
             }
             linkMode.put(player.getUniqueId(), menu.locationKey);
             player.closeInventory();
-            player.sendMessage("§aLink mode ready. Sneak-right-click a chest, furnace, barrel, or hopper.");
-            player.sendMessage("§7Click a listed output in the menu to remove it.");
+            player.sendMessage("§aLink mode ready. Sneak-right-click a container beside this hopper.");
+            player.sendMessage("§7The target must be exactly one block away.");
             return;
         }
-        if (slot >= 20 && slot <= 22) {
-            int linkIndex = slot - 20;
+        if (slot >= FIRST_LINK_SLOT && slot < FIRST_LINK_SLOT + 3) {
+            int linkIndex = slot - FIRST_LINK_SLOT;
             if (linkIndex < hopper.links.size()) {
                 String removed = hopper.links.remove(linkIndex);
                 saveHoppers();
@@ -187,9 +202,8 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             }
             return;
         }
-        if (slot == 26) player.closeInventory();
+        if (slot == CLOSE_BUTTON_SLOT) player.closeInventory();
     }
-
     @EventHandler
     public void onMenuClose(InventoryCloseEvent event) {
         if (event.getView().getTopInventory().getHolder() instanceof HopperMenu menu) {
@@ -207,6 +221,11 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         }
         if (!(target.getState() instanceof Container)) {
             player.sendMessage("§cChoose a chest, furnace, barrel, or another container block.");
+            return;
+        }
+        Block sourceBlock = resolve(sourceKey);
+        if (sourceBlock == null || !isOneBlockAway(sourceBlock, target)) {
+            player.sendMessage("§cThe output must be directly beside the upgraded hopper.");
             return;
         }
         String targetKey = key(target.getLocation());
@@ -229,11 +248,19 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         openMenu(player, sourceKey);
     }
 
+    private boolean isOneBlockAway(Block first, Block second) {
+        if (!first.getWorld().equals(second.getWorld())) return false;
+        int distance = Math.abs(first.getX() - second.getX())
+                + Math.abs(first.getY() - second.getY())
+                + Math.abs(first.getZ() - second.getZ());
+        return distance == 1;
+    }
     private void openMenu(Player player, String locationKey) {
         UpgradedHopper hopper = upgraded.get(locationKey);
         if (hopper == null) return;
+
         HopperMenu holder = new HopperMenu(locationKey);
-        Inventory inventory = Bukkit.createInventory(holder, 27, MENU_TITLE);
+        Inventory inventory = Bukkit.createInventory(holder, MENU_SIZE, MENU_TITLE);
         holder.inventory = inventory;
         refreshMenu(holder, hopper);
         player.openInventory(inventory);
@@ -241,35 +268,37 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
 
     private void refreshMenu(HopperMenu menu, UpgradedHopper hopper) {
         Inventory inventory = menu.inventory;
-        inventory.clear();
+        Inventory normalInventory = getHopperInventory(menu.locationKey);
+        if (normalInventory == null) return;
 
+        inventory.clear();
         for (int slot = 0; slot < inventory.getSize(); slot++) {
-            if (slot < 9 || slot > 17) {
-                inventory.setItem(slot, item(Material.GRAY_STAINED_GLASS_PANE, " ", List.of()));
-            }
+            inventory.setItem(slot, item(Material.GRAY_STAINED_GLASS_PANE, " ", List.of()));
         }
 
         inventory.setItem(4, item(Material.HOPPER, "§6§lHopper Upgrader", List.of(
-                "§7Five bonus storage slots are below.",
-                "§7Transfers run every " + getConfig().getLong("transfer.interval-ticks", 2) + " tick(s).")));
+                "§7Slots 1-5 are the hopper's normal inventory.",
+                "§7Slots 6-10 are bonus storage for linked outputs.")));
 
         for (int slot = 0; slot < EXTRA_SLOTS; slot++) {
-            ItemStack stored = hopper.storage[slot];
-            if (stored == null) {
-                inventory.setItem(10 + slot, item(Material.LIGHT_GRAY_STAINED_GLASS_PANE,
-                        "§7Bonus slot " + (slot + 1),
-                        List.of("§8Click with an item on your cursor to store it.")));
-            } else {
-                inventory.setItem(10 + slot, stored.clone());
-            }
+            ItemStack normalItem = normalInventory.getItem(slot);
+            inventory.setItem(NORMAL_SLOT_START + slot, normalItem == null
+                    ? item(Material.LIGHT_GRAY_STAINED_GLASS_PANE, "§7Normal slot " + (slot + 1), List.of())
+                    : normalItem.clone());
+
+            ItemStack bonusItem = hopper.storage[slot];
+            inventory.setItem(EXTRA_SLOT_START + slot, bonusItem == null
+                    ? item(Material.BLACK_STAINED_GLASS_PANE, "§7Bonus slot " + (slot + 1),
+                            List.of("§8Items here use the linked output route."))
+                    : bonusItem.clone());
         }
 
-        inventory.setItem(18, item(Material.COMPASS, "§bLink an output", List.of(
-                "§7Connect this hopper to another container.",
+        inventory.setItem(LINK_BUTTON_SLOT, item(Material.COMPASS, "§bLink an output", List.of(
+                "§7Connect to a container beside this hopper.",
                 "§7Up to " + maxLinks() + " outputs per hopper.")));
 
         for (int index = 0; index < 3; index++) {
-            int menuSlot = 20 + index;
+            int menuSlot = FIRST_LINK_SLOT + index;
             if (index < hopper.links.size()) {
                 inventory.setItem(menuSlot, item(Material.CHEST, "§eOutput " + (index + 1), List.of(
                         "§7" + displayName(hopper.links.get(index)), "§cClick to unlink")));
@@ -278,35 +307,18 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             }
         }
 
-        inventory.setItem(26, item(Material.BARRIER, "§cClose", List.of()));
+        inventory.setItem(CLOSE_BUTTON_SLOT, item(Material.BARRIER, "§cClose", List.of()));
     }
-
-    private void moveFromPlayerInventory(InventoryClickEvent event, UpgradedHopper hopper) {
+    private void moveFromPlayerInventory(InventoryClickEvent event,
+                                         Inventory normalInventory,
+                                         UpgradedHopper hopper) {
         ItemStack moving = event.getCurrentItem();
         if (moving == null || moving.getType().isAir()) return;
 
-        int remaining = moving.getAmount();
-        for (int pass = 0; pass < 2 && remaining > 0; pass++) {
-            for (int slot = 0; slot < hopper.storage.length && remaining > 0; slot++) {
-                ItemStack stored = hopper.storage[slot];
-                boolean matchingStack = stored != null && stored.isSimilar(moving);
-                if ((pass == 0 && !matchingStack) || (pass == 1 && stored != null)) continue;
-
-                int capacity = stored == null
-                        ? moving.getMaxStackSize()
-                        : stored.getMaxStackSize() - stored.getAmount();
-                int count = Math.min(remaining, capacity);
-                if (count <= 0) continue;
-
-                if (stored == null) {
-                    stored = moving.clone();
-                    stored.setAmount(count);
-                    hopper.storage[slot] = stored;
-                } else {
-                    stored.setAmount(stored.getAmount() + count);
-                }
-                remaining -= count;
-            }
+        Map<Integer, ItemStack> leftovers = normalInventory.addItem(moving.clone());
+        int remaining = leftovers.values().stream().mapToInt(ItemStack::getAmount).sum();
+        if (remaining > 0) {
+            remaining = moveIntoBonusSlots(hopper, moving, remaining);
         }
 
         if (remaining == moving.getAmount()) return;
@@ -318,6 +330,77 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         }
     }
 
+    private int moveIntoBonusSlots(UpgradedHopper hopper, ItemStack item, int amount) {
+        int remaining = amount;
+        for (int pass = 0; pass < 2 && remaining > 0; pass++) {
+            for (int slot = 0; slot < hopper.storage.length && remaining > 0; slot++) {
+                ItemStack stored = hopper.storage[slot];
+                boolean matchingStack = stored != null && stored.isSimilar(item);
+                if ((pass == 0 && !matchingStack) || (pass == 1 && stored != null)) continue;
+
+                int capacity = stored == null
+                        ? item.getMaxStackSize()
+                        : stored.getMaxStackSize() - stored.getAmount();
+                int count = Math.min(remaining, capacity);
+                if (count <= 0) continue;
+
+                if (stored == null) {
+                    stored = item.clone();
+                    stored.setAmount(count);
+                    hopper.storage[slot] = stored;
+                } else {
+                    stored.setAmount(stored.getAmount() + count);
+                }
+                remaining -= count;
+            }
+        }
+        return remaining;
+    }
+
+    private void editInventorySlot(Player player, Inventory inventory, int slot, ClickType click) {
+        if (click != ClickType.LEFT && click != ClickType.RIGHT) return;
+
+        ItemStack stored = inventory.getItem(slot);
+        ItemStack cursor = player.getItemOnCursor();
+        if (click.isRightClick()) {
+            if (cursor == null || cursor.getType().isAir()) {
+                if (stored == null) return;
+                int count = (stored.getAmount() + 1) / 2;
+                ItemStack picked = stored.clone();
+                picked.setAmount(count);
+                stored.setAmount(stored.getAmount() - count);
+                inventory.setItem(slot, stored.getAmount() == 0 ? null : stored);
+                player.setItemOnCursor(picked);
+            } else if (stored == null) {
+                ItemStack placed = cursor.clone();
+                placed.setAmount(1);
+                inventory.setItem(slot, placed);
+                takeFromCursor(player, cursor, 1);
+            } else if (stored.isSimilar(cursor) && stored.getAmount() < stored.getMaxStackSize()) {
+                stored.setAmount(stored.getAmount() + 1);
+                inventory.setItem(slot, stored);
+                takeFromCursor(player, cursor, 1);
+            }
+            return;
+        }
+
+        if (cursor == null || cursor.getType().isAir()) {
+            if (stored == null) return;
+            inventory.setItem(slot, null);
+            player.setItemOnCursor(stored.clone());
+        } else if (stored == null) {
+            inventory.setItem(slot, cursor.clone());
+            player.setItemOnCursor(null);
+        } else if (stored.isSimilar(cursor) && stored.getAmount() < stored.getMaxStackSize()) {
+            int moved = Math.min(cursor.getAmount(), stored.getMaxStackSize() - stored.getAmount());
+            stored.setAmount(stored.getAmount() + moved);
+            inventory.setItem(slot, stored);
+            takeFromCursor(player, cursor, moved);
+        } else {
+            inventory.setItem(slot, cursor.clone());
+            player.setItemOnCursor(stored.clone());
+        }
+    }
     private void editStorage(Player player, UpgradedHopper hopper, int index, ClickType click) {
         if (click != ClickType.LEFT && click != ClickType.RIGHT) return;
         ItemStack stored = hopper.storage[index];
@@ -380,10 +463,16 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         }
     }
 
+    private Inventory getHopperInventory(String locationKey) {
+        Block block = resolve(locationKey);
+        if (block == null || block.getType() != Material.HOPPER) return null;
+        if (!(block.getState() instanceof Container container)) return null;
+        return container.getInventory();
+    }
+
     private Inventory hopperBlockInventory(Block block) {
         return ((Container) block.getState()).getInventory();
     }
-
     private int pullFromAbove(Block hopperBlock, UpgradedHopper hopper, int budget) {
         Block above = hopperBlock.getRelative(0, 1, 0);
         if (!(above.getState() instanceof Container source)) return 0;
@@ -395,43 +484,29 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             ItemStack item = sourceInventory.getItem(sourceSlot);
             if (item == null || item.getType().isAir()) continue;
 
-            for (int targetSlot = 0; targetSlot < hopper.storage.length && moved < budget; targetSlot++) {
-                ItemStack stored = hopper.storage[targetSlot];
-                if (stored != null && (!stored.isSimilar(item)
-                        || stored.getAmount() >= stored.getMaxStackSize())) {
-                    continue;
-                }
+            int count = Math.min(item.getAmount(), budget - moved);
+            ItemStack offered = item.clone();
+            offered.setAmount(count);
+            InventoryMoveItemEvent move = new InventoryMoveItemEvent(
+                    sourceInventory, offered, hopperInventory, true);
+            Bukkit.getPluginManager().callEvent(move);
+            if (move.isCancelled() || move.getItem() == null || !move.getItem().isSimilar(item)) continue;
 
-                int capacity = stored == null
-                        ? item.getMaxStackSize()
-                        : stored.getMaxStackSize() - stored.getAmount();
-                int count = Math.min(Math.min(item.getAmount(), capacity), budget - moved);
-                if (count <= 0) continue;
+            int transferCount = Math.min(count, move.getItem().getAmount());
+            if (transferCount <= 0) continue;
+            offered = move.getItem().clone();
+            offered.setAmount(transferCount);
+            Map<Integer, ItemStack> leftovers = hopperInventory.addItem(offered);
+            int accepted = transferCount;
+            for (ItemStack leftover : leftovers.values()) accepted -= leftover.getAmount();
+            if (accepted <= 0) continue;
 
-                ItemStack offered = item.clone();
-                offered.setAmount(count);
-                InventoryMoveItemEvent move = new InventoryMoveItemEvent(
-                        sourceInventory, offered, hopperInventory, true);
-                Bukkit.getPluginManager().callEvent(move);
-                if (move.isCancelled() || move.getItem() == null || !move.getItem().isSimilar(item)) continue;
-
-                count = Math.min(count, move.getItem().getAmount());
-                if (stored == null) {
-                    stored = item.clone();
-                    stored.setAmount(count);
-                    hopper.storage[targetSlot] = stored;
-                } else {
-                    stored.setAmount(stored.getAmount() + count);
-                }
-
-                item.setAmount(item.getAmount() - count);
-                sourceInventory.setItem(sourceSlot, item.getAmount() <= 0 ? null : item);
-                moved += count;
-            }
+            item.setAmount(item.getAmount() - accepted);
+            sourceInventory.setItem(sourceSlot, item.getAmount() <= 0 ? null : item);
+            moved += accepted;
         }
         return moved;
     }
-
     private Map<Integer, ItemStack> insertIntoContainer(Inventory inventory, ItemStack offered) {
         if (!(inventory instanceof FurnaceInventory)) return inventory.addItem(offered);
         int slot = offered.getType().isFuel() ? 1 : 0;

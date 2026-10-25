@@ -7,6 +7,7 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.Container;
+import org.bukkit.block.data.type.Hopper;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -567,7 +568,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
 
     private int pushNormalToOutputs(Block hopperBlock, UpgradedHopper hopper, int budget) {
         if (budget <= 0 || hopper.links.isEmpty()) return 0;
-        List<Inventory> targets = linkedOutputInventories(hopper);
+        List<Inventory> targets = normalOutputInventories(hopperBlock, hopper);
         if (targets.isEmpty()) return 0;
 
         Inventory source = hopperBlockInventory(hopperBlock);
@@ -615,6 +616,24 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             hopper.nextOutput = targetIndex;
         }
         return moved;
+    }
+
+    /** Keep the hopper's vanilla facing as its first destination. */
+    private List<Inventory> normalOutputInventories(Block hopperBlock, UpgradedHopper hopper) {
+        List<Inventory> targets = new ArrayList<>();
+        if (hopperBlock.getBlockData() instanceof Hopper hopperData) {
+            Block facingBlock = hopperBlock.getRelative(hopperData.getFacing());
+            if (facingBlock.getState() instanceof Container container) {
+                targets.add(container.getInventory());
+            }
+        }
+        for (Inventory linked : linkedOutputInventories(hopper)) {
+            boolean alreadyIncluded = targets.stream().anyMatch(existing -> existing.getLocation() != null
+                    && linked.getLocation() != null
+                    && existing.getLocation().equals(linked.getLocation()));
+            if (!alreadyIncluded) targets.add(linked);
+        }
+        return targets;
     }
 
     private List<Inventory> linkedOutputInventories(UpgradedHopper hopper) {

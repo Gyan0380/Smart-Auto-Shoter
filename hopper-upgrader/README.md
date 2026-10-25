@@ -12,6 +12,8 @@ A standalone Paper plugin that gives hoppers five bonus storage slots, faster it
 
 The physical hopper inventory and ordinary Minecraft hopper behavior remain intact. The bonus slots are separate from the vanilla five slots. The plugin's faster transfer loop moves up to four items every two ticks by default (configurable). Vanilla hopper automation remains available alongside it.
 
+Transfers raise the standard inventory-move event so protection plugins can cancel them. Items sent to furnaces go into the input slot, while fuel items go into the fuel slot.
+
 ## Configuration
 
 `plugins/HopperUpgrader/config.yml`:
@@ -39,4 +41,3 @@ The plugin JAR is `hopper-upgrader/build/libs/HopperUpgrader-1.0.0.jar`. Paper 2
 ## Permission
 
 `hopperupgrader.use` defaults to all players. The help command is available to all players.
-

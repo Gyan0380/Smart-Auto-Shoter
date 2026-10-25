@@ -374,21 +374,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
                 int count = Math.min(remaining, capacity);
                 if (count <= 0) continue;
 
-                if (stored == null) {
-                    stored = item.clone();
-                    stored.setAmount(count);
-                    hopper.storage[slot] = stored;
-                } else {
-                    stored.setAmount(stored.getAmount() + count);
-                }
-                remaining -= count;
-            }
-        }
-        return remaining;
-    }
-
-    private void editInventorySlot(Player player, Inventory inventory, int slot, ClickType click) {
-        if (click != ClickType.LEFT && click != ClickType.RIGHT) return;
+                if (stored …127 tokens truncated…click != ClickType.RIGHT) return;
 
         ItemStack stored = inventory.getItem(slot);
         ItemStack cursor = player.getItemOnCursor();
@@ -576,9 +562,14 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             ItemStack stored = source.getItem(slot);
             if (stored == null || stored.getType().isAir()) continue;
 
-            int targetIndex = targetWithRoomForStack(targets, stored, hopper.nextOutput);
+            int targetIndex = targetWithRoom(targets, stored, hopper.nextOutput);
             if (targetIndex < 0) continue;
-            int count = Math.min(stored.getAmount(), budget - moved);
+            int room = availableCapacity(targets.get(targetIndex), stored);
+            int count = Math.min(Math.min(stored.getAmount(), budget - moved), room);
+            if (count <= 0) {
+                hopper.nextOutput = (targetIndex + 1) % targets.size();
+                continue;
+            }
             ItemStack offered = stored.clone();
             offered.setAmount(count);
             InventoryMoveItemEvent move = new InventoryMoveItemEvent(source, offered, targets.get(targetIndex), true);
@@ -627,10 +618,10 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         return !linkedOutputInventories(hopper).isEmpty();
     }
 
-    private int targetWithRoomForStack(List<Inventory> targets, ItemStack item, int startIndex) {
+    private int targetWithRoom(List<Inventory> targets, ItemStack item, int startIndex) {
         for (int attempt = 0; attempt < targets.size(); attempt++) {
             int index = Math.floorMod(startIndex + attempt, targets.size());
-            if (availableCapacity(targets.get(index), item) >= item.getAmount()) return index;
+            if (availableCapacity(targets.get(index), item) > 0) return index;
         }
         return -1;
     }
@@ -674,9 +665,14 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             ItemStack stored = hopper.storage[slot];
             if (stored == null || stored.getType().isAir()) continue;
 
-            int targetIndex = targetWithRoomForStack(targets, stored, hopper.nextOutput);
+            int targetIndex = targetWithRoom(targets, stored, hopper.nextOutput);
             if (targetIndex < 0) continue;
-            int count = Math.min(stored.getAmount(), budget - moved);
+            int room = availableCapacity(targets.get(targetIndex), stored);
+            int count = Math.min(Math.min(stored.getAmount(), budget - moved), room);
+            if (count <= 0) {
+                hopper.nextOutput = (targetIndex + 1) % targets.size();
+                continue;
+            }
             ItemStack offered = stored.clone();
             offered.setAmount(count);
             InventoryMoveItemEvent move = new InventoryMoveItemEvent(hopperBlockInventory(hopperBlock),

@@ -7,7 +7,7 @@ Hopper Upgrader adds faster transfers and five extra storage slots to Paper hopp
 1. Copy `HopperUpgrader-1.0.0.jar` into the server's `plugins` folder, then restart Paper.
 2. Hold a copper hoe, crouch, and right-click a hopper. This upgrades the hopper and opens its menu. Repeat the same action to open the menu later.
 3. The first row in the menu is the hopper's real five-slot inventory. Items placed there keep normal hopper behavior, so farms and other hopper chains continue to work. Shift-clicking from your inventory fills these slots first.
-4. The second row is the five-slot bonus buffer. Use **Link an output**, then crouch-right-click a chest, barrel, furnace, or hopper directly beside the upgraded hopper. You can link one output on each of the four horizontal sides. The hopper nozzle points toward the most recently linked side. Items already in the hopper inventory are routed to available linked outputs first; any amount that will not fit stays in the hopper. Items in the bonus buffer are also sent to linked outputs in turn. Click an output in the menu to unlink it.
+4. The second row is the five-slot bonus buffer. Use **Link an output**, then crouch-right-click a chest, barrel, furnace, or hopper directly beside the upgraded hopper. You can link one output on each of the four horizontal sides. Items first collect in the hopper inventory. Once all five normal slots are full, items are sent in round-robin order to available linked outputs; if the outputs are full, items stay in the hopper. Items in the bonus buffer are also sent to linked outputs in turn. Click an output in the menu to unlink it.
 5. If no outputs are linked, bonus-buffer items go to a container below the hopper. Items in the normal hopper slots always follow standard Minecraft hopper routing.
 
 By default, the plugin checks upgraded hoppers every two ticks and moves up to four items per check from a container above into the hopper's normal inventory. This supplements the usual hopper transfer. Furnace inputs go into the input slot and fuel goes into the fuel slot. Transfers raise Paper's inventory-move event so protection plugins can cancel them.
@@ -41,7 +41,3 @@ The JAR is `hopper-upgrader/build/libs/HopperUpgrader-1.0.0.jar`. The GitHub Act
 ## Permission
 
 `hopperupgrader.use` defaults to all players. The help command is available to everyone.
-
-## Four-nozzle appearance
-
-For four visible outlets, install the optional server resource pack in [resource-pack/README.md](resource-pack/README.md). The pack changes the appearance of all hoppers while enabled because Minecraft resource packs cannot identify plugin-upgraded blocks.

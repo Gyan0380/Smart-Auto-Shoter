@@ -30,6 +30,5 @@ jobs:
           name: HopperUpgrader-Paper-26.3
           path: |
             hopper-upgrader/build/libs/HopperUpgrader-*.jar
-            hopper-upgrader/resource-pack/HopperFourNozzles.zip
           if-no-files-found: error
 

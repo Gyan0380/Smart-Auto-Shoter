@@ -7,7 +7,6 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.Container;
-import org.bukkit.block.data.Directional;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -74,7 +73,6 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         saveTask = getServer().getScheduler().runTaskTimer(this, () -> {
             if (dataDirty) saveHoppers();
         }, DATA_SAVE_INTERVAL_TICKS, DATA_SAVE_INTERVAL_TICKS);
-        getServer().getScheduler().runTask(this, () -> upgraded.forEach(this::updateNozzle));
         getLogger().info("Loaded " + upgraded.size() + " upgraded hopper(s).");
     }
 
@@ -162,11 +160,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             Block block = resolve(entry.getKey());
             if (block == null || block.getType() != Material.HOPPER) continue;
             if (!event.getSource().equals(hopperBlockInventory(block))) continue;
-            Block below = block.getRelative(0, -1, 0);
-            if (!(below.getState() instanceof Container container)) continue;
-            if (event.getDestination().equals(container.getInventory()) && hasLinkedOutput(hopper)) {
-                event.setCancelled(true);
-            }
+            if (hasLinkedOutput(hopper)) event.setCancelled(true);
             return;
         }
     }
@@ -222,7 +216,6 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             int linkIndex = slot - FIRST_LINK_SLOT;
             if (linkIndex < hopper.links.size()) {
                 String removed = hopper.links.remove(linkIndex);
-                updateNozzle(menu.locationKey, hopper);
                 saveHoppers();
                 refreshMenu(menu, hopper);
                 player.sendMessage("§eOutput unlinked: §f" + displayName(removed));
@@ -269,7 +262,6 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             return;
         }
         source.links.add(targetKey);
-        updateNozzle(sourceKey, source);
         linkMode.remove(player.getUniqueId());
         saveHoppers();
         player.sendMessage("§aOutput linked. Items will be distributed between connected containers.");
@@ -291,27 +283,6 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         return null;
     }
 
-    private void updateNozzle(String hopperKey, UpgradedHopper hopper) {
-        Block block = resolve(hopperKey);
-        if (block == null || block.getType() != Material.HOPPER) return;
-
-        BlockFace facing = BlockFace.DOWN;
-        for (int index = hopper.links.size() - 1; index >= 0; index--) {
-            Block target = resolve(hopper.links.get(index));
-            if (target == null) continue;
-            BlockFace linkedFace = faceTo(block, target);
-            if (linkedFace != null) {
-                facing = linkedFace;
-                break;
-            }
-        }
-
-        if (block.getBlockData() instanceof Directional directional
-                && directional.getFaces().contains(facing)) {
-            directional.setFacing(facing);
-            block.setBlockData(directional, false);
-        }
-    }
     private void openMenu(Player player, String locationKey) {
         UpgradedHopper hopper = upgraded.get(locationKey);
         if (hopper == null) return;
@@ -517,12 +488,28 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             if (block == null || block.getType() != Material.HOPPER) continue;
             UpgradedHopper hopper = entry.getValue();
             int moved = pullFromAbove(block, hopper, budget);
-            moved += pushNormalToOutputs(block, hopper, Math.max(0, budget - moved));
-            moved += pushToOutputs(block, hopper, Math.max(0, budget - moved));
+            if (hopper.links.isEmpty()) {
+                hopper.bufferPrimed = false;
+            } else if (!hopper.bufferPrimed && isInventoryFull(hopperBlockInventory(block))) {
+                hopper.bufferPrimed = true;
+                dataDirty = true;
+            }
+            if (hopper.bufferPrimed) {
+                moved += pushNormalToOutputs(block, hopper, Math.max(0, budget - moved));
+                moved += pushToOutputs(block, hopper, Math.max(0, budget - moved));
+            }
             if (moved > 0) dataDirty = true;
         }
     }
 
+    private boolean isInventoryFull(Inventory inventory) {
+        for (ItemStack item : inventory.getStorageContents()) {
+            if (item == null || item.getType().isAir()) return false;
+            int capacity = Math.min(item.getMaxStackSize(), inventory.getMaxStackSize());
+            if (item.getAmount() < capacity) return false;
+        }
+        return true;
+    }
     private Inventory getHopperInventory(String locationKey) {
         Block block = resolve(locationKey);
         if (block == null || block.getType() != Material.HOPPER) return null;
@@ -711,6 +698,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
                 hopper.storage[slot] = data.getItemStack("hoppers." + key + ".storage." + slot);
             }
             hopper.links.addAll(data.getStringList("hoppers." + key + ".links"));
+            hopper.bufferPrimed = data.getBoolean("hoppers." + key + ".buffer-primed", false);
             upgraded.put(key, hopper);
         }
     }
@@ -726,6 +714,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
                 data.set(path + ".storage." + i, hopper.storage[i]);
             }
             data.set(path + ".links", hopper.links);
+            data.set(path + ".buffer-primed", hopper.bufferPrimed);
         }
         try {
             getDataFolder().mkdirs();
@@ -807,5 +796,6 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         private final ItemStack[] storage = new ItemStack[EXTRA_SLOTS];
         private final List<String> links = new ArrayList<>();
         private int nextOutput;
+        private boolean bufferPrimed;
     }
 }

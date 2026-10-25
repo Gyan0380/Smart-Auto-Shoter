@@ -1,0 +1,49 @@
+{
+  "textures": {
+    "outside": "minecraft:block/hopper_outside",
+    "inside": "minecraft:block/hopper_inside",
+    "particle": "minecraft:block/hopper_outside"
+  },
+  "elements": [
+    {
+      "from": [6, 4, 6], "to": [10, 8, 10],
+      "faces": {
+        "north": { "texture": "#outside" }, "south": { "texture": "#outside" },
+        "east": { "texture": "#outside" }, "west": { "texture": "#outside" },
+        "up": { "texture": "#outside" }, "down": { "texture": "#outside" }
+      }
+    },
+    {
+      "from": [6, 4, 0], "to": [10, 8, 8],
+      "faces": {
+        "north": { "texture": "#inside" }, "south": { "texture": "#outside" },
+        "east": { "texture": "#outside" }, "west": { "texture": "#outside" },
+        "up": { "texture": "#outside" }, "down": { "texture": "#outside" }
+      }
+    },
+    {
+      "from": [6, 4, 8], "to": [10, 8, 16],
+      "faces": {
+        "north": { "texture": "#outside" }, "south": { "texture": "#inside" },
+        "east": { "texture": "#outside" }, "west": { "texture": "#outside" },
+        "up": { "texture": "#outside" }, "down": { "texture": "#outside" }
+      }
+    },
+    {
+      "from": [0, 4, 6], "to": [8, 8, 10],
+      "faces": {
+        "north": { "texture": "#outside" }, "south": { "texture": "#outside" },
+        "east": { "texture": "#inside" }, "west": { "texture": "#outside" },
+        "up": { "texture": "#outside" }, "down": { "texture": "#outside" }
+      }
+    },
+    {
+      "from": [8, 4, 6], "to": [16, 8, 10],
+      "faces": {
+        "north": { "texture": "#outside" }, "south": { "texture": "#outside" },
+        "east": { "texture": "#outside" }, "west": { "texture": "#inside" },
+        "up": { "texture": "#outside" }, "down": { "texture": "#outside" }
+      }
+    }
+  ]
+}

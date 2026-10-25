@@ -41,3 +41,7 @@ The JAR is `hopper-upgrader/build/libs/HopperUpgrader-1.0.0.jar`. The GitHub Act
 ## Permission
 
 `hopperupgrader.use` defaults to all players. The help command is available to everyone.
+
+## Four-nozzle appearance
+
+For four visible outlets, install the optional server resource pack in [resource-pack/README.md](resource-pack/README.md). The pack changes the appearance of all hoppers while enabled because Minecraft resource packs cannot identify plugin-upgraded blocks.

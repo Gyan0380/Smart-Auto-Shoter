@@ -28,6 +28,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: HopperUpgrader-Paper-26.3
-          path: hopper-upgrader/build/libs/HopperUpgrader-*.jar
+          path: |
+            hopper-upgrader/build/libs/HopperUpgrader-*.jar
+            hopper-upgrader/resource-pack/HopperFourNozzles.zip
           if-no-files-found: error
 

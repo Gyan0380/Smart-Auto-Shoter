@@ -54,6 +54,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
     private BukkitTask transferTask;
     private BukkitTask saveTask;
     private boolean dataDirty;
+    private boolean linkedOutputMove;
 
     @Override
     public void onEnable() {
@@ -143,6 +144,24 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         saveHoppers();
         openMenu(player, key);
         player.sendMessage("§aHopper upgraded. Its normal slots, five bonus slots, and faster routing are ready.");
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onVanillaLinkedHopperMove(InventoryMoveItemEvent event) {
+        if (linkedOutputMove) return;
+        for (Map.Entry<String, UpgradedHopper> entry : upgraded.entrySet()) {
+            UpgradedHopper hopper = entry.getValue();
+            if (hopper.links.isEmpty()) continue;
+            Block block = resolve(entry.getKey());
+            if (block == null || block.getType() != Material.HOPPER) continue;
+            if (!event.getSource().equals(hopperBlockInventory(block))) continue;
+            Block below = block.getRelative(0, -1, 0);
+            if (!(below.getState() instanceof Container container)) continue;
+            if (event.getDestination().equals(container.getInventory()) && hasLinkedOutput(hopper)) {
+                event.setCancelled(true);
+            }
+            return;
+        }
     }
 
     @EventHandler
@@ -458,6 +477,7 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             if (block == null || block.getType() != Material.HOPPER) continue;
             UpgradedHopper hopper = entry.getValue();
             int moved = pullFromAbove(block, hopper, budget);
+            moved += pushNormalToOutputs(block, hopper, Math.max(0, budget - moved));
             moved += pushToOutputs(block, hopper, Math.max(0, budget - moved));
             if (moved > 0) dataDirty = true;
         }
@@ -526,6 +546,62 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         return Map.of(slot, leftover);
     }
 
+    private int pushNormalToOutputs(Block hopperBlock, UpgradedHopper hopper, int budget) {
+        if (budget <= 0 || hopper.links.isEmpty()) return 0;
+        List<Inventory> targets = linkedOutputInventories(hopper);
+        if (targets.isEmpty()) return 0;
+
+        Inventory source = hopperBlockInventory(hopperBlock);
+        int moved = 0;
+        for (int slot = 0; slot < source.getSize() && moved < budget; slot++) {
+            ItemStack stored = source.getItem(slot);
+            if (stored == null || stored.getType().isAir()) continue;
+            int attempts = targets.size();
+            while (attempts-- > 0 && stored != null && moved < budget) {
+                int index = hopper.nextOutput++ % targets.size();
+                int count = Math.min(stored.getAmount(), budget - moved);
+                ItemStack offered = stored.clone();
+                offered.setAmount(count);
+                InventoryMoveItemEvent move = new InventoryMoveItemEvent(source, offered, targets.get(index), true);
+                linkedOutputMove = true;
+                try {
+                    Bukkit.getPluginManager().callEvent(move);
+                } finally {
+                    linkedOutputMove = false;
+                }
+                if (move.isCancelled() || move.getItem() == null || !move.getItem().isSimilar(stored)) continue;
+
+                offered = move.getItem().clone();
+                int transferCount = Math.min(count, offered.getAmount());
+                offered.setAmount(transferCount);
+                Map<Integer, ItemStack> leftovers = insertIntoContainer(targets.get(index), offered);
+                int accepted = transferCount;
+                for (ItemStack leftover : leftovers.values()) accepted -= leftover.getAmount();
+                if (accepted <= 0) continue;
+
+                stored.setAmount(stored.getAmount() - accepted);
+                source.setItem(slot, stored.getAmount() <= 0 ? null : stored);
+                moved += accepted;
+                if (stored.getAmount() <= 0) stored = null;
+            }
+        }
+        return moved;
+    }
+
+    private List<Inventory> linkedOutputInventories(UpgradedHopper hopper) {
+        List<Inventory> targets = new ArrayList<>();
+        for (String link : hopper.links) {
+            Block block = resolve(link);
+            if (block != null && block.getState() instanceof Container container) {
+                targets.add(container.getInventory());
+            }
+        }
+        return targets;
+    }
+
+    private boolean hasLinkedOutput(UpgradedHopper hopper) {
+        return !linkedOutputInventories(hopper).isEmpty();
+    }
     private int pushToOutputs(Block hopperBlock, UpgradedHopper hopper, int budget) {
         if (budget <= 0) return 0;
         List<Inventory> targets = new ArrayList<>();
@@ -555,7 +631,12 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
                 offered.setAmount(count);
                 InventoryMoveItemEvent move = new InventoryMoveItemEvent(hopperBlockInventory(hopperBlock),
                         offered, targets.get(index), true);
-                Bukkit.getPluginManager().callEvent(move);
+                linkedOutputMove = true;
+                try {
+                    Bukkit.getPluginManager().callEvent(move);
+                } finally {
+                    linkedOutputMove = false;
+                }
                 if (move.isCancelled() || move.getItem() == null || !move.getItem().isSimilar(stored)) continue;
                 offered = move.getItem();
                 Map<Integer, ItemStack> leftovers = insertIntoContainer(targets.get(index), offered);

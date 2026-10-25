@@ -487,31 +487,20 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
             Block block = resolve(entry.getKey());
             if (block == null || block.getType() != Material.HOPPER) continue;
             UpgradedHopper hopper = entry.getValue();
-            int moved = pullFromAbove(block, hopper, budget);
+
+            int moved;
             if (hopper.links.isEmpty()) {
-                hopper.bufferPrimed = false;
-                moved += pushToOutputs(block, hopper, Math.max(0, budget - moved));
+                int pulled = pullFromAbove(block, hopper, budget);
+                int pushed = pushToOutputs(block, hopper, budget);
+                moved = pulled + pushed;
             } else {
-                if (!hopper.bufferPrimed && isInventoryFull(hopperBlockInventory(block))) {
-                    hopper.bufferPrimed = true;
-                    dataDirty = true;
-                }
-                if (hopper.bufferPrimed) {
-                    moved += pushNormalToOutputs(block, hopper, Math.max(0, budget - moved));
-                    moved += pushToOutputs(block, hopper, Math.max(0, budget - moved));
-                }
+                int routed = pushNormalToOutputs(block, hopper, budget);
+                routed += pushToOutputs(block, hopper, Math.max(0, budget - routed));
+                int pulled = pullFromAbove(block, hopper, budget);
+                moved = routed + pulled;
             }
             if (moved > 0) dataDirty = true;
         }
-    }
-
-    private boolean isInventoryFull(Inventory inventory) {
-        for (ItemStack item : inventory.getStorageContents()) {
-            if (item == null || item.getType().isAir()) return false;
-            int capacity = Math.min(item.getMaxStackSize(), inventory.getMaxStackSize());
-            if (item.getAmount() < capacity) return false;
-        }
-        return true;
     }
     private Inventory getHopperInventory(String locationKey) {
         Block block = resolve(locationKey);
@@ -701,7 +690,6 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
                 hopper.storage[slot] = data.getItemStack("hoppers." + key + ".storage." + slot);
             }
             hopper.links.addAll(data.getStringList("hoppers." + key + ".links"));
-            hopper.bufferPrimed = data.getBoolean("hoppers." + key + ".buffer-primed", false);
             upgraded.put(key, hopper);
         }
     }
@@ -717,7 +705,6 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
                 data.set(path + ".storage." + i, hopper.storage[i]);
             }
             data.set(path + ".links", hopper.links);
-            data.set(path + ".buffer-primed", hopper.bufferPrimed);
         }
         try {
             getDataFolder().mkdirs();
@@ -799,6 +786,5 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
         private final ItemStack[] storage = new ItemStack[EXTRA_SLOTS];
         private final List<String> links = new ArrayList<>();
         private int nextOutput;
-        private boolean bufferPrimed;
     }
 }

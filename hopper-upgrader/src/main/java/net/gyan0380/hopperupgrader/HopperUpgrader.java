@@ -374,7 +374,21 @@ public final class HopperUpgrader extends JavaPlugin implements Listener {
                 int count = Math.min(remaining, capacity);
                 if (count <= 0) continue;
 
-                if (stored …127 tokens truncated…click != ClickType.RIGHT) return;
+                if (stored == null) {
+                    stored = item.clone();
+                    stored.setAmount(count);
+                    hopper.storage[slot] = stored;
+                } else {
+                    stored.setAmount(stored.getAmount() + count);
+                }
+                remaining -= count;
+            }
+        }
+        return remaining;
+    }
+
+    private void editInventorySlot(Player player, Inventory inventory, int slot, ClickType click) {
+        if (click != ClickType.LEFT && click != ClickType.RIGHT) return;
 
         ItemStack stored = inventory.getItem(slot);
         ItemStack cursor = player.getItemOnCursor();

@@ -1,0 +1,15 @@
+name: MinecraftConnector
+version: 1.0.0
+main: net.gyan0380.minecartconnector.MinecraftConnector
+api-version: '26.3'
+description: Connect minecarts into small trains using a chain.
+author: Gyan0380
+commands:
+  minecartconnector:
+    description: Minecraft Connector help and configuration reload.
+    usage: /minecartconnector [help|reload]
+    aliases: [mccarts, mconnector]
+permissions:
+  minecartconnector.admin:
+    description: Reload Minecraft Connector settings.
+    default: op

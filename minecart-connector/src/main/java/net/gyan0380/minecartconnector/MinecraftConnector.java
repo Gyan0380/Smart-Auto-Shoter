@@ -111,13 +111,6 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
             return;
         }
 
-        int maxLinks = Math.max(1, getConfig().getInt("max-links-per-cart", 2));
-        if (linkCount(firstId) >= maxLinks || linkCount(cart.getUniqueId()) >= maxLinks) {
-            selectedCart.remove(playerId);
-            player.sendMessage(ChatColor.RED + "One of these carts has reached the link limit (" + maxLinks + ").");
-            return;
-        }
-
         links.add(link);
         createChainDisplays(link, firstCart.getLocation());
         selectedCart.remove(playerId);

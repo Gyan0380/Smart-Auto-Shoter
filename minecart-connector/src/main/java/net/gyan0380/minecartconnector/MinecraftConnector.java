@@ -5,6 +5,9 @@ import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.Rail;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
@@ -37,6 +40,7 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
     private final Map<UUID, UUID> selectedCart = new HashMap<>();
     private final Set<CartLink> links = new HashSet<>();
     private final Map<CartLink, List<ItemDisplay>> chainDisplays = new HashMap<>();
+    private final Map<UUID, Vector> lastRailDirection = new HashMap<>();
     private BukkitTask physicsTask;
 
     @Override
@@ -58,6 +62,7 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
         chainDisplays.clear();
         selectedCart.clear();
         links.clear();
+        lastRailDirection.clear();
     }
 
     @EventHandler
@@ -161,6 +166,115 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
             // This is visual/logical coupling only; no artificial speed cap or velocity override is applied.
             updateVisibleChain(link, locationA, locationB);
         }
+        propagateFurnaceMotion();
+    }
+
+    private void propagateFurnaceMotion() {
+        Set<UUID> visited = new HashSet<>();
+        for (CartLink seed : links) {
+            if (visited.contains(seed.first()) && visited.contains(seed.second())) continue;
+            Set<UUID> component = new HashSet<>();
+            List<UUID> queue = new ArrayList<>();
+            queue.add(seed.first());
+            queue.add(seed.second());
+            for (int i = 0; i < queue.size(); i++) {
+                UUID id = queue.get(i);
+                if (!component.add(id)) continue;
+                for (CartLink edge : links) {
+                    if (edge.first().equals(id)) queue.add(edge.second());
+                    else if (edge.second().equals(id)) queue.add(edge.first());
+                }
+            }
+            visited.addAll(component);
+            List<Minecart> carts = new ArrayList<>();
+            for (UUID id : component) {
+                Entity entity = Bukkit.getEntity(id);
+                if (entity instanceof Minecart cart && cart.isValid()) {
+                    carts.add(cart);
+                    Vector velocity = cart.getVelocity().clone();
+                    velocity.setY(0);
+                    if (velocity.lengthSquared() > 0.0004 && isOnRail(cart)) {
+                        lastRailDirection.put(id, velocity.normalize());
+                    }
+                }
+            }
+            Minecart engine = null;
+            double engineSpeed = 0.0;
+            for (Minecart cart : carts) {
+                Vector velocity = cart.getVelocity().clone();
+                velocity.setY(0);
+                double speed = velocity.length();
+                if (cart.getType() == org.bukkit.entity.EntityType.MINECART_FURNACE && speed > engineSpeed) {
+                    engine = cart;
+                    engineSpeed = speed;
+                }
+            }
+            if (engine == null || engineSpeed < 0.025) continue;
+            Vector engineVelocity = engine.getVelocity().clone();
+            engineVelocity.setY(0);
+            for (Minecart cart : carts) {
+                if (cart.getUniqueId().equals(engine.getUniqueId()) || !isOnRail(cart)) continue;
+                if (cart.getLocation().distanceSquared(engine.getLocation()) < 0.01) continue;
+                // Avoid accelerating a cart into a neighbor when they are already almost touching.
+                boolean crowded = false;
+                for (Minecart other : carts) {
+                    if (other == cart) continue;
+                    if (cart.getLocation().distanceSquared(other.getLocation()) < 0.64) {
+                        crowded = true;
+                        break;
+                    }
+                }
+                if (crowded) {
+                    Vector current = cart.getVelocity().clone();
+                    if (current.lengthSquared() < 0.0004) cart.setVelocity(new Vector(0, current.getY(), 0));
+                    continue;
+                }
+                Vector current = cart.getVelocity().clone();
+                current.setY(0);
+                if (current.length() >= engineSpeed * 0.8) continue;
+                Vector preferred = lastRailDirection.getOrDefault(cart.getUniqueId(), engineVelocity.clone().normalize());
+                Vector railDirection = getRailDirection(cart, preferred);
+                if (railDirection == null) continue;
+                // Follow the furnace cart in either direction while staying aligned to each cart's rail.
+                double followSpeed = Math.min(engineSpeed, cart.getMaxSpeed());
+                Vector nextVelocity = railDirection.multiply(followSpeed);
+                nextVelocity.setY(cart.getVelocity().getY());
+                cart.setVelocity(nextVelocity);
+                lastRailDirection.put(cart.getUniqueId(), nextVelocity.clone().setY(0).normalize());
+            }
+        }
+    }
+
+    private boolean isOnRail(Minecart cart) {
+        Block block = cart.getLocation().getBlock();
+        return block.getBlockData() instanceof Rail || block.getRelative(BlockFace.DOWN).getBlockData() instanceof Rail;
+    }
+
+    private Vector getRailDirection(Minecart cart, Vector preferred) {
+        Block block = cart.getLocation().getBlock();
+        if (!(block.getBlockData() instanceof Rail)) block = block.getRelative(BlockFace.DOWN);
+        if (!(block.getBlockData() instanceof Rail rail)) return null;
+        List<Vector> candidates = new ArrayList<>();
+        switch (rail.getShape()) {
+            case NORTH_SOUTH, ASCENDING_NORTH, ASCENDING_SOUTH -> candidates.add(new Vector(0, 0, 1));
+            case EAST_WEST, ASCENDING_EAST, ASCENDING_WEST -> candidates.add(new Vector(1, 0, 0));
+            case SOUTH_EAST -> { candidates.add(new Vector(0, 0, 1)); candidates.add(new Vector(1, 0, 0)); }
+            case SOUTH_WEST -> { candidates.add(new Vector(0, 0, 1)); candidates.add(new Vector(1, 0, 0)); }
+            case NORTH_WEST -> { candidates.add(new Vector(0, 0, 1)); candidates.add(new Vector(1, 0, 0)); }
+            case NORTH_EAST -> { candidates.add(new Vector(0, 0, 1)); candidates.add(new Vector(1, 0, 0)); }
+        }
+        if (candidates.isEmpty()) return null;
+        Vector current = cart.getVelocity().clone();
+        current.setY(0);
+        Vector guide = current.lengthSquared() > 0.0004 ? current.normalize() : preferred.clone().setY(0).normalize();
+        Vector best = candidates.get(0);
+        double bestScore = -1.0;
+        for (Vector candidate : candidates) {
+            double score = Math.abs(candidate.dot(guide));
+            if (score > bestScore) { bestScore = score; best = candidate; }
+        }
+        if (best.dot(guide) < 0) best.multiply(-1);
+        return best;
     }
 
     private void updateVisibleChain(CartLink link, Location a, Location b) {

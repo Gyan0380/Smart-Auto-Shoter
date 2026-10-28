@@ -1,2 +1,8 @@
+# Maximum number of links per cart. 2 lets a cart connect to one cart ahead and one behind.
+max-links-per-cart: 2
+
+# Hide the chain when carts spread farther apart than this; the logical link remains active.
+max-link-distance: 3.5
+
 # Item used to connect carts.
 connector-item: CHAIN

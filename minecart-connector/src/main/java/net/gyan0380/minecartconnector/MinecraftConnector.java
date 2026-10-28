@@ -37,6 +37,7 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
     private final Map<UUID, UUID> selectedCart = new HashMap<>();
     private final Set<CartLink> links = new HashSet<>();
     private final Map<CartLink, List<ItemDisplay>> chainDisplays = new HashMap<>();
+    private final Map<UUID, Double> originalMaxSpeed = new HashMap<>();
     private BukkitTask physicsTask;
 
     @Override
@@ -56,6 +57,11 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
             }
         }
         chainDisplays.clear();
+        for (UUID cartId : new HashSet<>(originalMaxSpeed.keySet())) {
+            Entity entity = Bukkit.getEntity(cartId);
+            if (entity instanceof Minecart cart && cart.isValid()) cart.setMaxSpeed(originalMaxSpeed.get(cartId));
+        }
+        originalMaxSpeed.clear();
         selectedCart.clear();
         links.clear();
     }
@@ -125,6 +131,8 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
         }
 
         links.add(link);
+        applyTrainSpeedLimit(firstCart);
+        applyTrainSpeedLimit(cart);
         createChainDisplays(link, firstCart.getLocation());
         selectedCart.remove(playerId);
         player.sendMessage(ChatColor.GREEN + "Minecarts connected with a visible chain! Sneak + right-click with a chain to disconnect.");
@@ -170,16 +178,16 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
             if (!world.isChunkLoaded(locationA.getBlockX() >> 4, locationA.getBlockZ() >> 4)
                     || !world.isChunkLoaded(locationB.getBlockX() >> 4, locationB.getBlockZ() >> 4)) continue;
 
-            // This plugin is a visual connector only. Do not apply spring forces or set
-            // minecart velocity here: doing so fights vanilla rail physics and can reverse
-            // furnace carts or push carts off consecutive turns.
-            double maxLinkDistance = Math.max(1.5, getConfig().getDouble("max-link-distance", 3.5));
-            if (locationA.distanceSquared(locationB) > maxLinkDistance * maxLinkDistance) {
-                removeChainDisplays(link);
-                iterator.remove();
+            // Avoid spring forces: they fight rail direction on curves and can reverse furnace carts.
+            // A conservative speed cap is safer; keep the logical link if carts temporarily spread apart.
+            applyTrainSpeedLimit(a);
+            applyTrainSpeedLimit(b);
+
+            double maxVisualDistance = Math.max(1.5, getConfig().getDouble("max-link-distance", 3.5));
+            if (locationA.distanceSquared(locationB) > maxVisualDistance * maxVisualDistance) {
+                hideChainDisplays(link);
                 continue;
             }
-
             updateVisibleChain(link, locationA, locationB);
         }
     }
@@ -228,6 +236,29 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
         return point;
     }
 
+    private void applyTrainSpeedLimit(Minecart cart) {
+        originalMaxSpeed.putIfAbsent(cart.getUniqueId(), cart.getMaxSpeed());
+        double safeSpeed = Math.max(0.08, Math.min(0.4, getConfig().getDouble("linked-cart-max-speed", 0.20)));
+        cart.setMaxSpeed(Math.min(originalMaxSpeed.get(cart.getUniqueId()), safeSpeed));
+    }
+
+    private void restoreSpeedIfUnlinked(UUID cartId) {
+        if (linkCount(cartId) > 0) return;
+        Double original = originalMaxSpeed.remove(cartId);
+        if (original == null) return;
+        Entity entity = Bukkit.getEntity(cartId);
+        if (entity instanceof Minecart cart && cart.isValid()) cart.setMaxSpeed(original);
+    }
+
+    private void hideChainDisplays(CartLink link) {
+        List<ItemDisplay> displays = chainDisplays.get(link);
+        if (displays == null) return;
+        for (ItemDisplay display : displays) {
+            if (display != null && display.isValid()) display.remove();
+        }
+        chainDisplays.remove(link);
+    }
+
     private void removeChainDisplays(CartLink link) {
         List<ItemDisplay> displays = chainDisplays.remove(link);
         if (displays == null) return;
@@ -246,6 +277,7 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
                 iterator.remove();
             }
         }
+        restoreSpeedIfUnlinked(cartId);
         return before - links.size();
     }
 
@@ -268,7 +300,8 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
             sender.sendMessage(ChatColor.GOLD + "Minecart Connector");
             sender.sendMessage(ChatColor.YELLOW + "Hold a chain and right-click two minecarts to connect them.");
-            sender.sendMessage(ChatColor.YELLOW + "A visible chain hangs when carts are close and tightens as they separate.");
+            sender.sendMessage(ChatColor.YELLOW + "Linked carts use a safer speed limit for turns.");
+            sender.sendMessage(ChatColor.YELLOW + "If carts spread apart, the chain hides temporarily and reconnects visually when close.");
             sender.sendMessage(ChatColor.YELLOW + "Sneak + right-click a cart with a chain to disconnect it.");
             sender.sendMessage(ChatColor.YELLOW + "/minecartconnector reload - reload settings");
             return true;

@@ -204,7 +204,7 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
                 Vector velocity = cart.getVelocity().clone();
                 velocity.setY(0);
                 double speed = velocity.length();
-                if (cart.getType() == org.bukkit.entity.EntityType.MINECART_FURNACE && speed > engineSpeed) {
+                if (cart.getType() == org.bukkit.entity.EntityType.FURNACE_MINECART && speed > engineSpeed) {
                     engine = cart;
                     engineSpeed = speed;
                 }

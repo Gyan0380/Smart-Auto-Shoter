@@ -209,27 +209,14 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
                     engineSpeed = speed;
                 }
             }
-            // Followers brake individually before touching a neighbor; the engine can keep moving.
+            // Followers keep moving with the train even when carts get close.
+            // There is deliberately no per-cart link-count limit or proximity brake here.
             if (engine == null || engineSpeed < 0.025) continue;
             Vector engineVelocity = engine.getVelocity().clone();
             engineVelocity.setY(0);
             for (Minecart cart : carts) {
                 if (cart.getUniqueId().equals(engine.getUniqueId()) || !isOnRail(cart)) continue;
                 if (cart.getLocation().distanceSquared(engine.getLocation()) < 0.01) continue;
-                // Avoid accelerating a cart into a neighbor when they are already almost touching.
-                boolean crowded = false;
-                for (Minecart other : carts) {
-                    if (other == cart) continue;
-                    if (cart.getLocation().distanceSquared(other.getLocation()) < 0.64) {
-                        crowded = true;
-                        break;
-                    }
-                }
-                if (crowded) {
-                    Vector current = cart.getVelocity().clone();
-                    cart.setVelocity(new Vector(0, current.getY(), 0));
-                    continue;
-                }
                 Vector current = cart.getVelocity().clone();
                 current.setY(0);
                 Vector preferred = engineVelocity.clone();
@@ -248,11 +235,7 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
                         if (neighborVelocity.lengthSquared() > 0.0004) preferred = neighborVelocity;
                     }
                 }
-                // Keep a small safety gap. Brake this follower only, not the whole train.
-                if (nearestNeighborDistance < 0.64) {
-                    cart.setVelocity(new Vector(0, cart.getVelocity().getY(), 0));
-                    continue;
-                }
+                // Let close followers continue forward; vanilla minecart collision/rail physics applies.
                 double followSpeed = Math.min(engineSpeed, cart.getMaxSpeed());
                 Vector nextVelocity;
                 if (current.lengthSquared() > 0.0004) {

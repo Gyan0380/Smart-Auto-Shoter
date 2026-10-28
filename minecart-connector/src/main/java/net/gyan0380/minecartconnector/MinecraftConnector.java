@@ -269,15 +269,19 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
 
     private int unlinkCart(UUID cartId) {
         int before = links.size();
+        Set<UUID> affectedCarts = new HashSet<>();
+        affectedCarts.add(cartId);
         Iterator<CartLink> iterator = links.iterator();
         while (iterator.hasNext()) {
             CartLink link = iterator.next();
             if (link.first().equals(cartId) || link.second().equals(cartId)) {
+                affectedCarts.add(link.first());
+                affectedCarts.add(link.second());
                 removeChainDisplays(link);
                 iterator.remove();
             }
         }
-        restoreSpeedIfUnlinked(cartId);
+        for (UUID affectedId : affectedCarts) restoreSpeedIfUnlinked(affectedId);
         return before - links.size();
     }
 

@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class MinecraftConnector extends JavaPlugin implements Listener {
-    private static final int CHAIN_SEGMENTS = 10;
+    private static final int CHAIN_SEGMENTS = 6;
     private final Map<UUID, UUID> selectedCart = new HashMap<>();
     private final Set<CartLink> links = new HashSet<>();
     private final Map<CartLink, List<ItemDisplay>> chainDisplays = new HashMap<>();
@@ -103,9 +103,10 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
             player.sendMessage(ChatColor.RED + "Both carts must be in the same world.");
             return;
         }
-        if (firstCart.getLocation().distanceSquared(cart.getLocation()) > 100) {
+        double maxLinkDistance = Math.max(1.5, getConfig().getDouble("max-link-distance", 3.5));
+        if (firstCart.getLocation().distanceSquared(cart.getLocation()) > maxLinkDistance * maxLinkDistance) {
             selectedCart.remove(playerId);
-            player.sendMessage(ChatColor.RED + "Carts must be within 10 blocks of each other.");
+            player.sendMessage(ChatColor.RED + "Carts must be within " + maxLinkDistance + " blocks of each other.");
             return;
         }
 
@@ -137,9 +138,9 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
                 entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
                 entity.setTransformation(new Transformation(
                         new Vector3f(0, 0, 0), new Quaternionf(),
-                        new Vector3f(0.42f, 0.42f, 0.42f), new Quaternionf()));
-                entity.setInterpolationDuration(1);
-                entity.setTeleportDuration(1);
+                        new Vector3f(0.20f, 0.20f, 0.20f), new Quaternionf()));
+                entity.setInterpolationDuration(0);
+                entity.setTeleportDuration(0);
                 entity.setPersistent(false);
                 entity.setInvulnerable(true);
                 entity.setGravity(false);
@@ -169,26 +170,17 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
             if (!world.isChunkLoaded(locationA.getBlockX() >> 4, locationA.getBlockZ() >> 4)
                     || !world.isChunkLoaded(locationB.getBlockX() >> 4, locationB.getBlockZ() >> 4)) continue;
 
+            // This plugin is a visual connector only. Do not apply spring forces or set
+            // minecart velocity here: doing so fights vanilla rail physics and can reverse
+            // furnace carts or push carts off consecutive turns.
+            double maxLinkDistance = Math.max(1.5, getConfig().getDouble("max-link-distance", 3.5));
+            if (locationA.distanceSquared(locationB) > maxLinkDistance * maxLinkDistance) {
+                removeChainDisplays(link);
+                iterator.remove();
+                continue;
+            }
+
             updateVisibleChain(link, locationA, locationB);
-
-            Vector offset = locationB.toVector().subtract(locationA.toVector());
-            offset.setY(0);
-            double distance = offset.length();
-            if (distance < 0.001) continue;
-
-            Vector direction = offset.normalize();
-            double targetDistance = Math.max(0.8, getConfig().getDouble("target-distance", 1.35));
-            double spring = Math.max(0.0, getConfig().getDouble("spring-strength", 0.08));
-            double maxCorrection = Math.max(0.0, getConfig().getDouble("max-velocity-correction", 0.08));
-            Vector velocityA = a.getVelocity();
-            Vector velocityB = b.getVelocity();
-            double relativeSpeed = velocityB.clone().subtract(velocityA).dot(direction);
-            double correction = (distance - targetDistance) * spring + relativeSpeed * spring;
-            correction = Math.max(-maxCorrection, Math.min(maxCorrection, correction));
-            velocityA.add(direction.clone().multiply(correction));
-            velocityB.subtract(direction.clone().multiply(correction));
-            a.setVelocity(velocityA);
-            b.setVelocity(velocityB);
         }
     }
 
@@ -205,7 +197,7 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
         double horizontalDistance = Math.sqrt(delta.getX() * delta.getX() + delta.getZ() * delta.getZ());
 
         // Close carts get a hanging, loose chain; distant carts pull it nearly taut.
-        double sag = Math.max(0.04, Math.min(0.55, 0.62 - horizontalDistance * 0.055));
+        double sag = Math.max(0.015, Math.min(0.16, 0.18 - horizontalDistance * 0.035));
         for (int i = 0; i < displays.size(); i++) {
             double t = (i + 0.5) / displays.size();
             Vector point = start.clone().add(delta.clone().multiply(t));

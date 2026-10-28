@@ -1,4 +1,4 @@
-# Minecraft Connector
+# Minecart Connector
 
 A small Paper plugin that lets players connect minecarts into linked trains.
 
@@ -14,15 +14,15 @@ A small Paper plugin that lets players connect minecarts into linked trains.
 ## Installation
 
 1. Build the plugin JAR or download it from the project's Actions artifacts.
-2. Put `MinecraftConnector-1.0.0.jar` into the server's `plugins` directory.
+2. Put `MinecartConnector-1.0.0.jar` into the server's `plugins` directory.
 3. Restart the Paper server.
 4. Hold a chain, right-click the first cart, then right-click the second cart.
 5. To disconnect a cart, sneak and right-click it while holding a chain.
 
 ## Build
 
-The Gradle project is in `minecart-connector/` and targets Paper 26.3 with Java 25.
+The Gradle project is in `minecart-connector/`. It compiles against the published Paper 1.21.4 API using Java 21 to avoid relying on an unresolved `26.3.build.+` version selector.
 
 ## Notes
 
-Connections are held in memory and are cleared when the plugin/server disables. The connection effect uses gentle velocity corrections and should be tested on your server's rail layouts and minecart types before public release.
+Connections are held in memory and are cleared when the plugin/server disables. The connection effect uses gentle velocity corrections and should be tested on your server's rail layouts and minecart types before public release. Compatibility with newer Paper server versions has not yet been verified in-game.

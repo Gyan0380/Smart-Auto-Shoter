@@ -204,7 +204,14 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
                 Vector velocity = cart.getVelocity().clone();
                 velocity.setY(0);
                 double speed = velocity.length();
-                if (cart.getType() == org.bukkit.entity.EntityType.FURNACE_MINECART && speed > engineSpeed) {
+
+                // Either a powered furnace minecart OR a player-ridden minecart can pull the train.
+                // Previously only furnace minecarts were treated as the engine, so riding a normal
+                // minecart left every connected cart behind.
+                boolean playerDriven = !cart.getPassengers().isEmpty()
+                        && cart.getPassengers().stream().anyMatch(passenger -> passenger instanceof Player);
+                boolean poweredEngine = cart.getType() == org.bukkit.entity.EntityType.FURNACE_MINECART;
+                if ((poweredEngine || playerDriven) && speed > engineSpeed) {
                     engine = cart;
                     engineSpeed = speed;
                 }

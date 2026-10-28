@@ -124,15 +124,15 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
         }
 
         links.add(link);
-        createChainDisplays(link, firstCart.getWorld());
+        createChainDisplays(link, firstCart.getLocation());
         selectedCart.remove(playerId);
         player.sendMessage(ChatColor.GREEN + "Minecarts connected with a visible chain! Sneak + right-click with a chain to disconnect.");
     }
 
-    private void createChainDisplays(CartLink link, World world) {
+    private void createChainDisplays(CartLink link, Location anchor) {
         List<ItemDisplay> displays = new ArrayList<>();
         for (int i = 0; i < CHAIN_SEGMENTS; i++) {
-            ItemDisplay display = world.spawn(new Location(world, 0, -1000, 0), ItemDisplay.class, entity -> {
+            ItemDisplay display = anchor.getWorld().spawn(anchor, ItemDisplay.class, entity -> {
                 entity.setItemStack(new ItemStack(Material.CHAIN));
                 entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
                 entity.setTransformation(new Transformation(
@@ -195,7 +195,7 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
     private void updateVisibleChain(CartLink link, Location a, Location b) {
         List<ItemDisplay> displays = chainDisplays.get(link);
         if (displays == null || displays.size() != CHAIN_SEGMENTS) {
-            createChainDisplays(link, a.getWorld());
+            createChainDisplays(link, a);
             displays = chainDisplays.get(link);
         }
 

@@ -35,7 +35,7 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
         saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
         physicsTask = Bukkit.getScheduler().runTaskTimer(this, this::updateLinkedCarts, 1L, 1L);
-        getLogger().info("Minecraft Connector enabled.");
+        getLogger().info("Minecart Connector enabled.");
     }
 
     @Override
@@ -200,7 +200,7 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
-            sender.sendMessage(ChatColor.GOLD + "Minecraft Connector");
+            sender.sendMessage(ChatColor.GOLD + "Minecart Connector");
             sender.sendMessage(ChatColor.YELLOW + "Hold a chain and right-click two minecarts to connect them.");
             sender.sendMessage(ChatColor.YELLOW + "Sneak + right-click a cart with a chain to disconnect it.");
             sender.sendMessage(ChatColor.YELLOW + "/minecartconnector reload - reload settings");
@@ -213,7 +213,7 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
                 return true;
             }
             reloadConfig();
-            sender.sendMessage(ChatColor.GREEN + "Minecraft Connector settings reloaded.");
+            sender.sendMessage(ChatColor.GREEN + "Minecart Connector settings reloaded.");
             return true;
         }
 

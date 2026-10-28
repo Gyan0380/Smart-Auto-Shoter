@@ -1,9 +1,13 @@
 # Maximum number of links allowed per cart. 2 allows a cart to sit in a train.
 max-links-per-cart: 2
 
-# Maximum distance between linked carts before their link is safely removed.
-# Keep this low to prevent a long visual chain and accidental links to distant carts.
+# Maximum distance between linked carts before the chain hides temporarily.
+# The logical connection is retained so the chain can reappear when carts regroup.
 max-link-distance: 3.5
+
+# Conservative Paper minecart speed cap for linked trains, in blocks per tick.
+# Lower values may help consecutive turns; raise carefully if the train is too slow.
+linked-cart-max-speed: 0.20
 
 # Item used to connect carts.
 connector-item: CHAIN

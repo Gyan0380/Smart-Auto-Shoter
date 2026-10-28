@@ -209,6 +209,26 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
                     engineSpeed = speed;
                 }
             }
+            // If linked carts are already overlapping/pressed together, stop the whole train
+            // rather than letting the powered cart keep pushing the others into a pile.
+            boolean collisionRisk = false;
+            for (int i = 0; i < carts.size() && !collisionRisk; i++) {
+                for (int j = i + 1; j < carts.size(); j++) {
+                    Minecart first = carts.get(i);
+                    Minecart second = carts.get(j);
+                    if (first.getLocation().distanceSquared(second.getLocation()) < 0.49) {
+                        collisionRisk = true;
+                        break;
+                    }
+                }
+            }
+            if (collisionRisk) {
+                for (Minecart cart : carts) {
+                    Vector velocity = cart.getVelocity().clone();
+                    cart.setVelocity(new Vector(0, velocity.getY(), 0));
+                }
+                continue;
+            }
             if (engine == null || engineSpeed < 0.025) continue;
             Vector engineVelocity = engine.getVelocity().clone();
             engineVelocity.setY(0);

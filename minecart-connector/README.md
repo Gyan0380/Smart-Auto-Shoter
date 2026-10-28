@@ -6,7 +6,7 @@ A small Paper plugin that lets players connect minecarts into linked trains.
 
 - Connect minecarts by holding a chain and right-clicking two carts.
 - Supports any cart that implements Paper/Bukkit's `Minecart` interface, including rideable, chest, hopper, furnace, and TNT minecarts where supported by the server version.
-- Connect multiple carts into a line, up to the configured link limit per cart.
+- Connect multiple carts into a longer train; there is no per-cart link-count cap.
 - Show a visible chain made from small chain item displays between connected carts.
 - The chain visual hides when carts stretch far apart, while the logical link remains active.
 - A moving furnace minecart can pass its direction and speed to linked carts while each follower is aligned to its current rail direction.

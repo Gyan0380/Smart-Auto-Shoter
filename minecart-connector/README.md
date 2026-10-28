@@ -7,6 +7,8 @@ A small Paper plugin that lets players connect minecarts into linked trains.
 - Connect minecarts by holding a chain and right-clicking two carts.
 - Supports any cart that implements Paper/Bukkit's `Minecart` interface, including rideable, chest, hopper, furnace, and TNT minecarts where supported by the server version.
 - Connect multiple carts into a line, up to the configured link limit per cart.
+- Show a visible chain made from small chain item displays between connected carts.
+- The chain dynamically hangs lower when carts are close and becomes straighter as they pull apart.
 - Sneak and right-click a cart with a chain to remove its connections.
 - Configure link distance, connection strength, velocity correction, and connector item.
 - Admin command: `/minecartconnector reload`.
@@ -25,4 +27,4 @@ The Gradle project is in `minecart-connector/`. It compiles against the publishe
 
 ## Notes
 
-Connections are held in memory and are cleared when the plugin/server disables. The connection effect uses gentle velocity corrections and should be tested on your server's rail layouts and minecart types before public release. Compatibility with newer Paper server versions has not yet been verified in-game.
+Connections are held in memory and are cleared when the plugin/server disables. The chain visuals are client-visible ItemDisplay entities and are removed when carts disconnect or the plugin disables. This is a visual approximation—not a physically simulated chain—and the visuals, physics, performance, rail layouts, and minecart types still need in-game testing on the target Paper version. Compatibility with newer Paper server versions has not yet been verified in-game.

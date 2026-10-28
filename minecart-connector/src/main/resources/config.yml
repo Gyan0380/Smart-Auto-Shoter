@@ -1,15 +1,9 @@
 # Maximum number of links allowed per cart. 2 allows a cart to sit in a train.
 max-links-per-cart: 2
 
-# Desired distance between connected carts, in blocks.
-target-distance: 1.35
-
-# How strongly linked carts pull toward their target distance.
-# Keep this modest so carts can still move naturally on rails.
-spring-strength: 0.08
-
-# Maximum correction applied to a cart's horizontal velocity each tick.
-max-velocity-correction: 0.08
+# Maximum distance between linked carts before their link is safely removed.
+# Keep this low to prevent a long visual chain and accidental links to distant carts.
+max-link-distance: 3.5
 
 # Item used to connect carts.
 connector-item: CHAIN

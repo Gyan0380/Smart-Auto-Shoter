@@ -8,9 +8,12 @@ A small Paper plugin that lets players connect minecarts into linked trains.
 - Supports any cart that implements Paper/Bukkit's `Minecart` interface, including rideable, chest, hopper, furnace, and TNT minecarts where supported by the server version.
 - Connect multiple carts into a line, up to the configured link limit per cart.
 - Show a visible chain made from small chain item displays between connected carts.
-- The chain dynamically hangs lower when carts are close and becomes straighter as they pull apart.
+- The chain visual hides when carts stretch far apart, while the logical link remains active.
+- A moving furnace minecart can pass its direction and speed to linked carts while each follower is aligned to its current rail direction.
+- Reverse travel follows the furnace cart's current movement direction; the plugin does not apply a global speed cap.
+- A close-overlap guard stops a linked group if carts are dangerously close together, reducing pile-ups.
 - Sneak and right-click a cart with a chain to remove its connections.
-- Configure link distance, connection strength, velocity correction, and connector item.
+- Configure the maximum number of links per cart, chain visibility distance, and connector item.
 - Admin command: `/minecartconnector reload`.
 
 ## Installation
@@ -27,4 +30,4 @@ The Gradle project is in `minecart-connector/`. It compiles against the publishe
 
 ## Notes
 
-Connections are held in memory and are cleared when the plugin/server disables. The chain visuals are client-visible ItemDisplay entities and are removed when carts disconnect or the plugin disables. This is a visual approximation—not a physically simulated chain—and the visuals, physics, performance, rail layouts, and minecart types still need in-game testing on the target Paper version. Compatibility with newer Paper server versions has not yet been verified in-game.
+Connections are held in memory and are cleared when the plugin/server disables. The chain visuals are client-visible ItemDisplay entities and are removed when carts disconnect or the plugin disables. Paper does not expose a native physical minecart-coupling API, so train following is best-effort velocity synchronization along detected rail directions, not true vanilla cart coupling. The build, curves, reverse travel, blocked-cart handling, Bedrock/Geyser visuals, and performance still need in-game testing on the target Paper version.

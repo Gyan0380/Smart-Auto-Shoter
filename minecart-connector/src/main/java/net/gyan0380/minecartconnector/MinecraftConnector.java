@@ -231,11 +231,30 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
                 }
                 Vector current = cart.getVelocity().clone();
                 current.setY(0);
-                if (current.length() >= engineSpeed * 0.8) continue;
-                Vector preferred = lastRailDirection.getOrDefault(cart.getUniqueId(), engineVelocity.clone().normalize());
-                Vector railDirection = getRailDirection(cart, preferred);
+                Vector preferred = engineVelocity.clone();
+                double nearestNeighbor = Double.MAX_VALUE;
+                for (CartLink edge : links) {
+                    UUID neighborId = edge.first().equals(cart.getUniqueId()) ? edge.second()
+                            : edge.second().equals(cart.getUniqueId()) ? edge.first() : null;
+                    if (neighborId == null) continue;
+                    Entity neighborEntity = Bukkit.getEntity(neighborId);
+                    if (!(neighborEntity instanceof Minecart neighbor) || !neighbor.isValid()) continue;
+                    Vector neighborVelocity = neighbor.getVelocity().clone();
+                    neighborVelocity.setY(0);
+                    double neighborSpeed = neighborVelocity.length();
+                    double neighborDistance = cart.getLocation().distanceSquared(neighbor.getLocation());
+                    if (neighborSpeed > 0.025 && neighborDistance < nearestNeighbor) {
+                        nearestNeighbor = neighborDistance;
+                        preferred = neighborVelocity;
+                    }
+                }
+                Vector guide = preferred.clone().setY(0);
+                if (guide.lengthSquared() < 0.0004) guide = lastRailDirection.getOrDefault(cart.getUniqueId(), engineVelocity.clone()).clone();
+                Vector railDirection = getRailDirection(cart, guide);
                 if (railDirection == null) continue;
-                // Follow the furnace cart in either direction while staying aligned to each cart's rail.
+                boolean movingAgainstTrain = current.lengthSquared() > 0.0004 && current.normalize().dot(railDirection) < -0.2;
+                if (current.length() >= engineSpeed * 0.8 && !movingAgainstTrain) continue;
+                // Match the linked train's direction, including reverse travel, along this cart's rail.
                 double followSpeed = Math.min(engineSpeed, cart.getMaxSpeed());
                 Vector nextVelocity = railDirection.multiply(followSpeed);
                 nextVelocity.setY(cart.getVelocity().getY());
@@ -264,9 +283,14 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
             case NORTH_EAST -> { candidates.add(new Vector(0, 0, 1)); candidates.add(new Vector(1, 0, 0)); }
         }
         if (candidates.isEmpty()) return null;
-        Vector current = cart.getVelocity().clone();
-        current.setY(0);
-        Vector guide = current.lengthSquared() > 0.0004 ? current.normalize() : preferred.clone().setY(0).normalize();
+        Vector guide = preferred.clone();
+        guide.setY(0);
+        if (guide.lengthSquared() < 0.0004) {
+            guide = cart.getVelocity().clone();
+            guide.setY(0);
+        }
+        if (guide.lengthSquared() < 0.0004) return candidates.get(0);
+        guide.normalize();
         Vector best = candidates.get(0);
         double bestScore = -1.0;
         for (Vector candidate : candidates) {

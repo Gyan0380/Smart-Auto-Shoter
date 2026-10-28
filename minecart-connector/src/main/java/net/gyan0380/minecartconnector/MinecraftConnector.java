@@ -157,13 +157,8 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
             if (!world.isChunkLoaded(locationA.getBlockX() >> 4, locationA.getBlockZ() >> 4)
                     || !world.isChunkLoaded(locationB.getBlockX() >> 4, locationB.getBlockZ() >> 4)) continue;
 
-            // Never pull carts toward one another: spring forces fight rail direction on turns.
-            // Keep the logical connection even if the carts temporarily spread apart.
-            double maxVisualDistance = Math.max(1.5, getConfig().getDouble("max-link-distance", 3.5));
-            if (locationA.distanceSquared(locationB) > maxVisualDistance * maxVisualDistance) {
-                hideChainDisplays(link);
-                continue;
-            }
+            // Keep the visible connection while linked, even when carts temporarily spread apart.
+            // This is visual/logical coupling only; no artificial speed cap or velocity override is applied.
             updateVisibleChain(link, locationA, locationB);
         }
     }

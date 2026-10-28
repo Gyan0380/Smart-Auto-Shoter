@@ -2,11 +2,13 @@ package net.gyan0380.minecartconnector;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Minecart;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -14,20 +16,27 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 public final class MinecraftConnector extends JavaPlugin implements Listener {
+    private static final int CHAIN_SEGMENTS = 10;
     private final Map<UUID, UUID> selectedCart = new HashMap<>();
     private final Set<CartLink> links = new HashSet<>();
+    private final Map<CartLink, List<ItemDisplay>> chainDisplays = new HashMap<>();
     private BukkitTask physicsTask;
 
     @Override
@@ -40,39 +49,33 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
-        if (physicsTask != null) {
-            physicsTask.cancel();
+        if (physicsTask != null) physicsTask.cancel();
+        for (List<ItemDisplay> displays : chainDisplays.values()) {
+            for (ItemDisplay display : displays) {
+                if (display != null && display.isValid()) display.remove();
+            }
         }
+        chainDisplays.clear();
         selectedCart.clear();
         links.clear();
     }
 
     @EventHandler
     public void onCartInteract(PlayerInteractEntityEvent event) {
-        if (!(event.getRightClicked() instanceof Minecart cart)) {
-            return;
-        }
-        if (event.getHand() != EquipmentSlot.HAND) {
-            return;
-        }
+        if (!(event.getRightClicked() instanceof Minecart cart) || event.getHand() != EquipmentSlot.HAND) return;
 
         Player player = event.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
         Material connector = getConnectorMaterial();
-        if (item.getType() != connector) {
-            return;
-        }
+        if (item.getType() != connector) return;
 
         event.setCancelled(true);
-
         if (player.isSneaking()) {
             int removed = unlinkCart(cart.getUniqueId());
             selectedCart.remove(player.getUniqueId());
-            if (removed > 0) {
-                player.sendMessage(ChatColor.GREEN + "Disconnected " + removed + " cart link(s).");
-            } else {
-                player.sendMessage(ChatColor.YELLOW + "This cart is not connected.");
-            }
+            player.sendMessage(removed > 0
+                    ? ChatColor.GREEN + "Disconnected " + removed + " cart link(s)."
+                    : ChatColor.YELLOW + "This cart is not connected.");
             return;
         }
 
@@ -80,11 +83,9 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
         UUID firstId = selectedCart.get(playerId);
         if (firstId == null) {
             selectedCart.put(playerId, cart.getUniqueId());
-            player.sendMessage(ChatColor.YELLOW + "First cart selected. Right-click another cart with a "
-                    + connector.name().toLowerCase().replace('_', ' ') + " to connect them.");
+            player.sendMessage(ChatColor.YELLOW + "First cart selected. Right-click another cart with a chain to connect them.");
             return;
         }
-
         if (firstId.equals(cart.getUniqueId())) {
             selectedCart.remove(playerId);
             player.sendMessage(ChatColor.GRAY + "Cart selection cancelled.");
@@ -97,13 +98,11 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
             player.sendMessage(ChatColor.RED + "The first cart is no longer available. Select it again.");
             return;
         }
-
         if (firstCart.getWorld() != cart.getWorld()) {
             selectedCart.remove(playerId);
             player.sendMessage(ChatColor.RED + "Both carts must be in the same world.");
             return;
         }
-
         if (firstCart.getLocation().distanceSquared(cart.getLocation()) > 100) {
             selectedCart.remove(playerId);
             player.sendMessage(ChatColor.RED + "Carts must be within 10 blocks of each other.");
@@ -125,9 +124,29 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
         }
 
         links.add(link);
+        createChainDisplays(link, firstCart.getWorld());
         selectedCart.remove(playerId);
-        player.sendMessage(ChatColor.GREEN + "Minecarts connected! Use a " + connector.name().toLowerCase().replace('_', ' ')
-                + " while sneaking and right-click a cart to disconnect its links.");
+        player.sendMessage(ChatColor.GREEN + "Minecarts connected with a visible chain! Sneak + right-click with a chain to disconnect.");
+    }
+
+    private void createChainDisplays(CartLink link, World world) {
+        List<ItemDisplay> displays = new ArrayList<>();
+        for (int i = 0; i < CHAIN_SEGMENTS; i++) {
+            ItemDisplay display = world.spawn(new Location(world, 0, -1000, 0), ItemDisplay.class, entity -> {
+                entity.setItemStack(new ItemStack(Material.CHAIN));
+                entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+                entity.setTransformation(new Transformation(
+                        new Vector3f(0, 0, 0), new Quaternionf(),
+                        new Vector3f(0.42f, 0.42f, 0.42f), new Quaternionf()));
+                entity.setInterpolationDuration(1);
+                entity.setTeleportDuration(1);
+                entity.setPersistent(false);
+                entity.setInvulnerable(true);
+                entity.setGravity(false);
+            });
+            displays.add(display);
+        }
+        chainDisplays.put(link, displays);
     }
 
     private void updateLinkedCarts() {
@@ -139,35 +158,33 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
 
             if (!(entityA instanceof Minecart a) || !(entityB instanceof Minecart b)
                     || !a.isValid() || !b.isValid() || a.getWorld() != b.getWorld()) {
+                removeChainDisplays(link);
                 iterator.remove();
                 continue;
             }
 
             World world = a.getWorld();
-            if (!world.isChunkLoaded(a.getLocation().getBlockX() >> 4, a.getLocation().getBlockZ() >> 4)
-                    || !world.isChunkLoaded(b.getLocation().getBlockX() >> 4, b.getLocation().getBlockZ() >> 4)) {
-                continue;
-            }
+            Location locationA = a.getLocation();
+            Location locationB = b.getLocation();
+            if (!world.isChunkLoaded(locationA.getBlockX() >> 4, locationA.getBlockZ() >> 4)
+                    || !world.isChunkLoaded(locationB.getBlockX() >> 4, locationB.getBlockZ() >> 4)) continue;
 
-            Vector offset = b.getLocation().toVector().subtract(a.getLocation().toVector());
+            updateVisibleChain(link, locationA, locationB);
+
+            Vector offset = locationB.toVector().subtract(locationA.toVector());
             offset.setY(0);
             double distance = offset.length();
-            if (distance < 0.001) {
-                continue;
-            }
+            if (distance < 0.001) continue;
 
             Vector direction = offset.normalize();
             double targetDistance = Math.max(0.8, getConfig().getDouble("target-distance", 1.35));
             double spring = Math.max(0.0, getConfig().getDouble("spring-strength", 0.08));
             double maxCorrection = Math.max(0.0, getConfig().getDouble("max-velocity-correction", 0.08));
-
             Vector velocityA = a.getVelocity();
             Vector velocityB = b.getVelocity();
             double relativeSpeed = velocityB.clone().subtract(velocityA).dot(direction);
             double correction = (distance - targetDistance) * spring + relativeSpeed * spring;
             correction = Math.max(-maxCorrection, Math.min(maxCorrection, correction));
-
-            // Apply a gentle horizontal correction rather than teleporting either cart.
             velocityA.add(direction.clone().multiply(correction));
             velocityB.subtract(direction.clone().multiply(correction));
             a.setVelocity(velocityA);
@@ -175,18 +192,75 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
         }
     }
 
+    private void updateVisibleChain(CartLink link, Location a, Location b) {
+        List<ItemDisplay> displays = chainDisplays.get(link);
+        if (displays == null || displays.size() != CHAIN_SEGMENTS) {
+            createChainDisplays(link, a.getWorld());
+            displays = chainDisplays.get(link);
+        }
+
+        Vector start = a.toVector().add(new Vector(0, 0.35, 0));
+        Vector end = b.toVector().add(new Vector(0, 0.35, 0));
+        Vector delta = end.clone().subtract(start);
+        double horizontalDistance = Math.sqrt(delta.getX() * delta.getX() + delta.getZ() * delta.getZ());
+
+        // Close carts get a hanging, loose chain; distant carts pull it nearly taut.
+        double sag = Math.max(0.04, Math.min(0.55, 0.62 - horizontalDistance * 0.055));
+        for (int i = 0; i < displays.size(); i++) {
+            double t = (i + 0.5) / displays.size();
+            Vector point = start.clone().add(delta.clone().multiply(t));
+            point.setY(point.getY() - 4.0 * sag * t * (1.0 - t));
+
+            double nextT = Math.min(1.0, t + 0.02);
+            double prevT = Math.max(0.0, t - 0.02);
+            Vector next = pointOnCurve(start, delta, sag, nextT);
+            Vector prev = pointOnCurve(start, delta, sag, prevT);
+            Vector tangent = next.subtract(prev);
+            float yaw = (float) Math.toDegrees(Math.atan2(-tangent.getX(), tangent.getZ()));
+            float pitch = (float) -Math.toDegrees(Math.atan2(tangent.getY(),
+                    Math.sqrt(tangent.getX() * tangent.getX() + tangent.getZ() * tangent.getZ())));
+
+            ItemDisplay display = displays.get(i);
+            if (display == null || !display.isValid()) continue;
+            Location target = point.toLocation(a.getWorld());
+            target.setYaw(yaw);
+            target.setPitch(pitch);
+            display.teleport(target);
+            display.setRotation(yaw, pitch);
+        }
+    }
+
+    private Vector pointOnCurve(Vector start, Vector delta, double sag, double t) {
+        Vector point = start.clone().add(delta.clone().multiply(t));
+        point.setY(point.getY() - 4.0 * sag * t * (1.0 - t));
+        return point;
+    }
+
+    private void removeChainDisplays(CartLink link) {
+        List<ItemDisplay> displays = chainDisplays.remove(link);
+        if (displays == null) return;
+        for (ItemDisplay display : displays) {
+            if (display != null && display.isValid()) display.remove();
+        }
+    }
+
     private int unlinkCart(UUID cartId) {
         int before = links.size();
-        links.removeIf(link -> link.first().equals(cartId) || link.second().equals(cartId));
+        Iterator<CartLink> iterator = links.iterator();
+        while (iterator.hasNext()) {
+            CartLink link = iterator.next();
+            if (link.first().equals(cartId) || link.second().equals(cartId)) {
+                removeChainDisplays(link);
+                iterator.remove();
+            }
+        }
         return before - links.size();
     }
 
     private int linkCount(UUID cartId) {
         int count = 0;
         for (CartLink link : links) {
-            if (link.first().equals(cartId) || link.second().equals(cartId)) {
-                count++;
-            }
+            if (link.first().equals(cartId) || link.second().equals(cartId)) count++;
         }
         return count;
     }
@@ -202,11 +276,11 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
             sender.sendMessage(ChatColor.GOLD + "Minecart Connector");
             sender.sendMessage(ChatColor.YELLOW + "Hold a chain and right-click two minecarts to connect them.");
+            sender.sendMessage(ChatColor.YELLOW + "A visible chain hangs when carts are close and tightens as they separate.");
             sender.sendMessage(ChatColor.YELLOW + "Sneak + right-click a cart with a chain to disconnect it.");
             sender.sendMessage(ChatColor.YELLOW + "/minecartconnector reload - reload settings");
             return true;
         }
-
         if (args[0].equalsIgnoreCase("reload")) {
             if (!sender.hasPermission("minecartconnector.admin")) {
                 sender.sendMessage(ChatColor.RED + "You do not have permission to do that.");
@@ -216,7 +290,6 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
             sender.sendMessage(ChatColor.GREEN + "Minecart Connector settings reloaded.");
             return true;
         }
-
         sender.sendMessage(ChatColor.RED + "Unknown subcommand. Use /minecartconnector help.");
         return true;
     }

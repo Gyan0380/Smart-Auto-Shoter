@@ -233,31 +233,43 @@ public final class MinecraftConnector extends JavaPlugin implements Listener {
                 Vector current = cart.getVelocity().clone();
                 current.setY(0);
                 Vector preferred = engineVelocity.clone();
-                double nearestNeighbor = Double.MAX_VALUE;
+                double nearestNeighborDistance = Double.MAX_VALUE;
                 for (CartLink edge : links) {
                     UUID neighborId = edge.first().equals(cart.getUniqueId()) ? edge.second()
                             : edge.second().equals(cart.getUniqueId()) ? edge.first() : null;
                     if (neighborId == null) continue;
                     Entity neighborEntity = Bukkit.getEntity(neighborId);
                     if (!(neighborEntity instanceof Minecart neighbor) || !neighbor.isValid()) continue;
-                    Vector neighborVelocity = neighbor.getVelocity().clone();
-                    neighborVelocity.setY(0);
-                    double neighborSpeed = neighborVelocity.length();
-                    double neighborDistance = cart.getLocation().distanceSquared(neighbor.getLocation());
-                    if (neighborSpeed > 0.025 && neighborDistance < nearestNeighbor) {
-                        nearestNeighbor = neighborDistance;
-                        preferred = neighborVelocity;
+                    double distanceSquared = cart.getLocation().distanceSquared(neighbor.getLocation());
+                    if (distanceSquared < nearestNeighborDistance) {
+                        nearestNeighborDistance = distanceSquared;
+                        Vector neighborVelocity = neighbor.getVelocity().clone();
+                        neighborVelocity.setY(0);
+                        if (neighborVelocity.lengthSquared() > 0.0004) preferred = neighborVelocity;
                     }
                 }
-                Vector guide = preferred.clone().setY(0);
-                if (guide.lengthSquared() < 0.0004) guide = lastRailDirection.getOrDefault(cart.getUniqueId(), engineVelocity.clone()).clone();
-                Vector railDirection = getRailDirection(cart, guide);
-                if (railDirection == null) continue;
-                boolean movingAgainstTrain = current.lengthSquared() > 0.0004 && current.normalize().dot(railDirection) < -0.2;
-                if (current.length() >= engineSpeed * 0.8 && !movingAgainstTrain) continue;
-                // Match the linked train's direction, including reverse travel, along this cart's rail.
+                // Keep a small safety gap. Brake this follower only, not the whole train.
+                if (nearestNeighborDistance < 0.64) {
+                    cart.setVelocity(new Vector(0, cart.getVelocity().getY(), 0));
+                    continue;
+                }
                 double followSpeed = Math.min(engineSpeed, cart.getMaxSpeed());
-                Vector nextVelocity = railDirection.multiply(followSpeed);
+                Vector nextVelocity;
+                if (current.lengthSquared() > 0.0004) {
+                    // Preserve the cart's own rail tangent so vanilla rail physics can carry it through curves.
+                    // Only reverse it when it is clearly moving against the train's direction.
+                    Vector direction = current.clone().normalize();
+                    Vector guide = preferred.clone().setY(0);
+                    if (guide.lengthSquared() > 0.0004 && direction.dot(guide.normalize()) < -0.2) direction.multiply(-1);
+                    nextVelocity = direction.multiply(Math.min(followSpeed, Math.max(current.length(), followSpeed * 0.65)));
+                } else {
+                    // A stopped follower needs a direction hint; the rail helper chooses its local track axis.
+                    Vector guide = preferred.clone().setY(0);
+                    if (guide.lengthSquared() < 0.0004) guide = lastRailDirection.getOrDefault(cart.getUniqueId(), engineVelocity.clone()).clone();
+                    Vector railDirection = getRailDirection(cart, guide);
+                    if (railDirection == null) continue;
+                    nextVelocity = railDirection.multiply(followSpeed * 0.65);
+                }
                 nextVelocity.setY(cart.getVelocity().getY());
                 cart.setVelocity(nextVelocity);
                 lastRailDirection.put(cart.getUniqueId(), nextVelocity.clone().setY(0).normalize());

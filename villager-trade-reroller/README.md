@@ -19,3 +19,6 @@ Paper plugin for Minecraft 26.x. Select an enchanted book in a GUI, target an **
 ## Build
 
 Run `gradle build` in this directory. The JAR is created in `build/libs/`.
+
+
+Build validation is run automatically by GitHub Actions when this module changes.

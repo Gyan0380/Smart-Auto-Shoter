@@ -1,0 +1,11 @@
+# Maximum reroll attempts for one villager. Prevents an endless task.
+max-attempts: 2000
+
+# Delay between attempts in server ticks (20 ticks = 1 second).
+reroll-delay-ticks: 2
+
+# Automatically change an untraded villager to a librarian when starting.
+set-librarian-profession: true
+
+# Number of additional offers to generate after resetOffers().
+additional-trades: 0

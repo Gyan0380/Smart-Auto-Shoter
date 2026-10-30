@@ -1,0 +1,41 @@
+name: Build Villager Trade Reroller
+
+on:
+  push:
+    branches:
+      - minecraft-connecter
+    paths:
+      - "villager-trade-reroller/**"
+      - ".github/workflows/build-villager-trade-reroller.yml"
+  pull_request:
+    branches:
+      - minecraft-connecter
+    paths:
+      - "villager-trade-reroller/**"
+      - ".github/workflows/build-villager-trade-reroller.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Build plugin
+        working-directory: villager-trade-reroller
+        run: gradle build
+      - name: Upload plugin JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: VillagerTradeReroller-1.0.0
+          path: villager-trade-reroller/build/libs/VillagerTradeReroller-1.0.0.jar
+          if-no-files-found: error

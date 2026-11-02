@@ -8,8 +8,8 @@ A Paper plugin with six custom enchant books, an XP shop, an expanded admin menu
 | Vein Miner | Pickaxe | Breaks connected blocks of the same ore type | 20 levels |
 | 3x3 Miner | Pickaxe | Breaks a 3×3 plane perpendicular to the direction you're aiming; looking up or down clears a horizontal plane | 30 levels |
 | Long Arm | Mining tools | Adds configurable block interaction reach while held in the main hand; it does not change entity or combat reach | 15 levels |
-| Less Damage | Damageable tools and armor | Chance to negate durability damage, otherwise reduce it; small chance to restore 1 durability | 40 levels |
-| Healer | Damageable tools and armor | Sneak + right-click while holding the enchanted item to repair it using XP points | 25 levels |
+| Less Damage | Damageable tools, armor, swords, bows, crossbows, spears, and tridents | Chance to negate durability damage, otherwise reduce it; small chance to restore 1 durability | 40 levels |
+| Healer | Damageable tools, armor, swords, bows, crossbows, spears, and tridents | Sneak + right-click while holding the enchanted item to repair it using XP points | 25 levels |
 
 Tools display a glint and lore for each custom enchant. Different custom enchants can share a tool up to the configurable limit (default 6); duplicate enchants are blocked. Sneak while mining to temporarily disable all effects. Extra blocks each consume one durability point, with Unbreaking applied; Lumberjack leaves and the snow layers above them don't consume durability. Area mining skips liquids, bedrock, and portal blocks. If it breaks a side block of an active Nether portal frame, that portal is cleared; optional corner blocks do not deactivate it. Breaking extra blocks applies normal physics, so sand and gravel fall when unsupported and nearby fluids update.
 

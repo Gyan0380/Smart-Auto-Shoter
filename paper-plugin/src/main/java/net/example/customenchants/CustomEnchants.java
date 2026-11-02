@@ -12,6 +12,11 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Projectile;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityShootBowEvent;
+import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -61,6 +66,8 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     private NamespacedKey toolKey;
     private NamespacedKey nightVisionKey;
     private final Set<UUID> processing = new HashSet<>();
+    private final Set<UUID> thunderProjectiles = new HashSet<>();
+    private final Set<UUID> thunderProcessing = new HashSet<>();
     private final Map<UUID,TpaRequest> incomingRequests = new HashMap<>();
     private final Map<UUID,TpaRequest> outgoingRequests = new HashMap<>();
     private final Map<UUID,BukkitTask> warmups = new HashMap<>();
@@ -96,7 +103,8 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         MINER3("3x3miner", "3x3 Miner", Material.DIAMOND_PICKAXE, 30),
         LONG_ARM("longarm", "Long Arm", Material.IRON_PICKAXE, 15),
         LESS_DAMAGE("lessdamage", "Less Damage", Material.DIAMOND_CHESTPLATE, 40),
-        HEALER("healer", "Healer", Material.EXPERIENCE_BOTTLE, 25);
+        HEALER("healer", "Healer", Material.EXPERIENCE_BOTTLE, 25),
+        THUNDER_STRIKE("thunderstrike", "Thunder Strike", Material.LIGHTNING_ROD, 50);
         final String id, label; final Material icon; final int defaultPrice;
         EnchantType(String id, String label, Material icon, int defaultPrice) {
             this.id=id; this.label=label; this.icon=icon; this.defaultPrice=defaultPrice;
@@ -169,13 +177,13 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         }
         if (args[0].equalsIgnoreCase("apply") && args.length == 2 && sender instanceof Player p) {
             EnchantType type=EnchantType.parse(args[1]);
-            if (type == null) { p.sendMessage("§cChoose a valid enchantment: lumberjack, veinminer, 3x3miner, longarm, lessdamage, or healer."); return true; }
+            if (type == null) { p.sendMessage("§cChoose a valid enchantment: lumberjack, veinminer, 3x3miner, longarm, lessdamage, healer, or thunderstrike."); return true; }
             applyBook(p, type); return true;
         }
         if (args[0].equalsIgnoreCase("give") && args.length == 3) {
             if (!sender.hasPermission("customenchants.admin")) { sender.sendMessage("§cYou don't have permission."); return true; }
             Player target=getServer().getPlayerExact(args[1]); EnchantType type=EnchantType.parse(args[2]);
-            if (target == null || type == null) { sender.sendMessage("§cUsage: /enchantshop give <online-player> <lumberjack|veinminer|3x3miner|longarm|lessdamage|healer>"); return true; }
+            if (target == null || type == null) { sender.sendMessage("§cUsage: /enchantshop give <online-player> <lumberjack|veinminer|3x3miner|longarm|lessdamage|healer|thunderstrike>"); return true; }
             target.getInventory().addItem(book(type)); target.sendMessage("§aYou received a "+type.label+" book.");
             sender.sendMessage("§aGave "+type.label+" to "+target.getName()+"."); return true;
         }
@@ -187,8 +195,8 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     private void openShop(Player p) {
         Inventory inv=getServer().createInventory(null, 27, SHOP_TITLE);
         fill(inv, Material.GRAY_STAINED_GLASS_PANE, " ");
-        for (int slot : new int[]{10,11,12,14,15,16}) inv.setItem(slot, null);
-        int[] slots={10,11,12,14,15,16};
+        for (int slot : new int[]{10,11,12,13,14,15,16}) inv.setItem(slot, null);
+        int[] slots={10,11,12,13,14,15,16};
         inv.setItem(4,adminItem(Material.ENCHANTED_BOOK,"§d§lCustom Enchantments",List.of("§7Choose a book to purchase.","§7Prices are paid in XP levels.")));
         int visible=0;
         for (EnchantType t:EnchantType.values()) {
@@ -214,6 +222,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             case LONG_ARM -> "Extends block interaction reach while held.";
             case LESS_DAMAGE -> "Chance to reduce equipment durability loss.";
             case HEALER -> "Sneak + right-click to repair with XP points.";
+            case THUNDER_STRIKE -> "30% chance to call a lightning effect and deal 5 hearts of damage.";
         };
     }
 
@@ -222,7 +231,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         e.setCancelled(true);
         if (!(e.getWhoClicked() instanceof Player p) || e.getRawSlot() >= e.getView().getTopInventory().getSize()) return;
         if (!getConfig().getBoolean("shop.enabled", true)) { p.sendMessage("§cThe enchant shop is currently disabled."); return; }
-        int slot=e.getRawSlot(); int[] slots={10,11,12,14,15,16}; EnchantType type=null; int visible=0;
+        int slot=e.getRawSlot(); int[] slots={10,11,12,13,14,15,16}; EnchantType type=null; int visible=0;
         for(EnchantType candidate:EnchantType.values()) {
             if(!getConfig().getBoolean("shop.items."+candidate.id+".enabled",true)) continue;
             if(visible<slots.length && slot==slots[visible]) type=candidate;
@@ -240,9 +249,9 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     private void openAdmin(Player p) {
         Inventory inv=getServer().createInventory(null,54,ADMIN_TITLE);
         fill(inv,Material.GRAY_STAINED_GLASS_PANE," ");
-        for(int slot=9;slot<=26;slot++) inv.setItem(slot,null);
+        for(int slot=9;slot<=29;slot++) inv.setItem(slot,null);
         for(int slot=36;slot<=44;slot++) inv.setItem(slot,null);
-        EnchantType[] types=EnchantType.values(); int[][] rows={{9,10,11},{12,13,14},{15,16,17},{18,19,20},{21,22,23},{24,25,26}};
+        EnchantType[] types=EnchantType.values(); int[][] rows={{9,10,11},{12,13,14},{15,16,17},{18,19,20},{21,22,23},{24,25,26},{27,28,29}};
         for(int i=0;i<types.length;i++) {
             EnchantType type=types[i]; int[] row=rows[i];
             inv.setItem(row[0],adminItem(Material.RED_STAINED_GLASS_PANE,"§c− Price",List.of("§7Click: −1 level", "§7Shift-click: −10 levels")));
@@ -294,7 +303,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         else if(slot==51) { p.sendMessage("§eHealer repair rate is configured in plugins/CustomEnchants/config.yml (healer.xp-per-durability)."); return; }
         else {
             EnchantType type=null; int direction=0; boolean toggle=false;
-            int[][] rows={{9,10,11},{12,13,14},{15,16,17},{18,19,20},{21,22,23},{24,25,26}};
+            int[][] rows={{9,10,11},{12,13,14},{15,16,17},{18,19,20},{21,22,23},{24,25,26},{27,28,29}};
             for(int i=0;i<rows.length;i++) {
                 if(slot==rows[i][0]) { type=EnchantType.values()[i]; direction=-1; }
                 else if(slot==rows[i][1]) { type=EnchantType.values()[i]; toggle=true; }
@@ -533,6 +542,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             case VEINMINER, MINER3 -> isPickaxe(tool);
             case LONG_ARM -> isMiningTool(tool);
             case LESS_DAMAGE, HEALER -> isToolOrArmor(tool);
+            case THUNDER_STRIKE -> isSword(tool)||isAxe(tool)||tool.getType()==Material.BOW;
         };
     }
     private boolean canApplyToTool(ItemStack tool,EnchantType type) {
@@ -692,6 +702,51 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         }
     }
 
+    @EventHandler(ignoreCancelled=true)
+    public void onThunderBowShoot(EntityShootBowEvent event) {
+        if (event.getEntity() instanceof Player player && event.getBow()!=null
+                && toolTypes(event.getBow()).contains(EnchantType.THUNDER_STRIKE)) {
+            thunderProjectiles.add(event.getProjectile().getUniqueId());
+        }
+    }
+
+    @EventHandler
+    public void onThunderProjectileHit(ProjectileHitEvent event) {
+        thunderProjectiles.remove(event.getEntity().getUniqueId());
+    }
+
+    @EventHandler(ignoreCancelled=true)
+    public void onThunderStrike(EntityDamageByEntityEvent event) {
+        Player attacker=null;
+        ItemStack weapon=null;
+        if (event.getDamager() instanceof Player player) {
+            attacker=player;
+            weapon=player.getInventory().getItemInMainHand();
+        } else if (event.getDamager() instanceof Projectile projectile
+                && projectile.getShooter() instanceof Player player
+                && thunderProjectiles.contains(projectile.getUniqueId())) {
+            attacker=player;
+            weapon=null; // The projectile was checked against its enchanted bow when it was fired.
+        }
+        if (attacker==null || !attacker.hasPermission("customenchants.use")
+                || !(event.getEntity() instanceof LivingEntity target)
+                || target.getUniqueId().equals(attacker.getUniqueId())
+                || thunderProcessing.contains(target.getUniqueId())) return;
+        boolean enchanted=weapon==null || toolTypes(weapon).contains(EnchantType.THUNDER_STRIKE);
+        if (!enchanted) return;
+        double chance=Math.max(0.0,Math.min(1.0,getConfig().getDouble("thunder-strike.chance",0.30)));
+        if (ThreadLocalRandom.current().nextDouble()>=chance) return;
+
+        double damage=Math.max(0.0,Math.min(40.0,getConfig().getDouble("thunder-strike.damage",10.0)));
+        thunderProcessing.add(target.getUniqueId());
+        try {
+            target.getWorld().strikeLightningEffect(target.getLocation());
+            if (damage>0.0 && target.isValid() && !target.isDead()) target.damage(damage,attacker);
+        } finally {
+            thunderProcessing.remove(target.getUniqueId());
+        }
+    }
+
     private void updateLongArmRange(Player player) {
         UUID id=player.getUniqueId();
         boolean active=toolTypes(player.getInventory().getItemInMainHand()).contains(EnchantType.LONG_ARM);
@@ -779,6 +834,7 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     }
     private int xpToNext(int l) { return l>=30?67+2*(l-30):l>=15?37+2*(l-15):7+2*l; }
 
+    private boolean isSword(ItemStack i) { return i!=null&&i.getType().name().endsWith("_SWORD"); }
     private boolean isAxe(ItemStack i) { return i!=null&&i.getType().name().endsWith("_AXE"); }
     private boolean isPickaxe(ItemStack i) { return i!=null&&i.getType().name().endsWith("_PICKAXE"); }
     private boolean isMiningTool(ItemStack i) {

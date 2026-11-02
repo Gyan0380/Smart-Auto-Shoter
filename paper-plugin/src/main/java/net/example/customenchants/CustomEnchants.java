@@ -789,10 +789,12 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
     private boolean isToolOrArmor(ItemStack i) {
         if(i==null || i.getType().getMaxDurability()<=0) return false;
         String n=i.getType().name();
-        return isMiningTool(i)||n.endsWith("_HELMET")||n.endsWith("_CHESTPLATE")||n.endsWith("_LEGGINGS")||n.endsWith("_BOOTS");
+        boolean armor=n.endsWith("_HELMET")||n.endsWith("_CHESTPLATE")||n.endsWith("_LEGGINGS")||n.endsWith("_BOOTS");
+        boolean weapon=n.endsWith("_SWORD")||n.endsWith("_BOW")||n.equals("CROSSBOW")
+                ||n.equals("TRIDENT")||n.equals("SPEAR")||n.endsWith("_SPEAR");
+        return isMiningTool(i)||armor||weapon;
     }
     private boolean isLog(Material m) { return m.name().endsWith("_LOG")||m.name().endsWith("_WOOD")||m.name().endsWith("_STEM")||m.name().endsWith("_HYPHAE"); }
     private boolean isLeaves(Material m) { return m.name().endsWith("_LEAVES"); }
     private boolean isOre(Material m) { String n=m.name(); return n.endsWith("_ORE")||n.equals("ANCIENT_DEBRIS")||n.equals("NETHER_GOLD_ORE"); }
 }
-

@@ -6,6 +6,7 @@ prices:
   longarm: 15
   lessdamage: 40
   healer: 25
+  thunderstrike: 50
 
 # Each additional custom enchantment on the same tool adds additional-cost levels.
 # Example defaults: first enchant costs 2, second 4, third 6 levels.
@@ -28,6 +29,8 @@ shop:
     lessdamage:
       enabled: true
     healer:
+      enabled: true
+    thunderstrike:
       enabled: true
 
 # The admin menu can block /nightvision for all players.
@@ -68,3 +71,9 @@ less-damage:
 # XP points (not levels) spent per 1 durability restored by sneaking + right-clicking.
 healer:
   xp-per-durability: 1.5
+
+# Thunder Strike rolls on a successful melee hit or an arrow hit from an enchanted bow.
+# Damage is 10 health points (5 hearts); the lightning is visual only.
+thunder-strike:
+  chance: 0.30
+  damage: 10.0

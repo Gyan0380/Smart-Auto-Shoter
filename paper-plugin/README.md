@@ -1,6 +1,6 @@
 # CustomEnchants 1.1.0
 
-A Paper plugin with six custom enchant books, an XP shop, an expanded admin menu, and optional TPA commands.
+A Paper plugin with seven custom enchant books, an XP shop, an expanded admin menu, and optional TPA commands.
 
 | Book | Tool | Effect | Default price |
 |---|---|---|---:|
@@ -10,6 +10,7 @@ A Paper plugin with six custom enchant books, an XP shop, an expanded admin menu
 | Long Arm | Mining tools | Adds configurable block interaction reach while held in the main hand; it does not change entity or combat reach | 15 levels |
 | Less Damage | Damageable tools, armor, swords, bows, crossbows, spears, and tridents | Chance to negate durability damage, otherwise reduce it; small chance to restore 1 durability | 40 levels |
 | Healer | Damageable tools, armor, swords, bows, crossbows, spears, and tridents | Sneak + right-click while holding the enchanted item to repair it using XP points | 25 levels |
+| Thunder Strike | Swords, axes, and bows | 30% chance on a successful hit to show lightning and deal 5 hearts of damage | 50 levels |
 
 Tools display a glint and lore for each custom enchant. Different custom enchants can share a tool up to the configurable limit (default 6); duplicate enchants are blocked. Sneak while mining to temporarily disable all effects. Extra blocks each consume one durability point, with Unbreaking applied; Lumberjack leaves and the snow layers above them don't consume durability. Area mining skips liquids, bedrock, and portal blocks. If it breaks a side block of an active Nether portal frame, that portal is cleared; optional corner blocks do not deactivate it. Breaking extra blocks applies normal physics, so sand and gravel fall when unsupported and nearby fluids update.
 
@@ -19,7 +20,7 @@ Application XP costs rise per existing custom enchant: defaults are 2 levels for
 
 - `/enchantshop` or `/eshop` opens the shop.
 - `/nightvision on` enables night vision for the player; `/nightvision off` removes it. Both options are available to all players.
-- `/enchantshop give <player> <lumberjack|veinminer|3x3miner|longarm|lessdamage|healer>` gives a book (admin).
+- `/enchantshop give <player> <lumberjack|veinminer|3x3miner|longarm|lessdamage|healer|thunderstrike>` gives a book (admin).
 - `/enchantadmin` opens the settings GUI (admin). Click books to show/hide them, use +/- to change prices, and adjust application XP costs and maximum enchants per tool. Shift-click changes values in larger steps. Toggle the shop, this plugin's TPA commands, and player night vision from the same menu. Disabling night vision removes effects granted by this plugin from online players and blocks the command.
 - `/tpa <player>` requests to teleport to a player.
 - `/tpahere <player>` requests a player to teleport to you. `/tpahear` is also accepted.
@@ -29,7 +30,7 @@ TPA acceptance starts a warmup (default 5 seconds), and successful teleport star
 
 ## Configuration
 
-The plugin creates and updates its own `plugins/CustomEnchants/config.yml`. Settings include `prices.*`, `application.base-cost`, `application.additional-cost`, `application.max-per-tool`, `long-arm.block-range-bonus`, `less-damage.*`, `healer.xp-per-durability`, `limits.lumberjack`, `limits.veinminer`, `lumberjack.leaf-radius`, `shop.enabled`, `shop.items.*.enabled`, `nightvision.enabled`, and `tpa.*`. TPA settings include request timeout, warmup, cooldown, cancel-on-move, and sound. The admin GUI saves changes immediately. It does not edit other plugins' configuration files.
+The plugin creates and updates its own `plugins/CustomEnchants/config.yml`. Settings include `prices.*`, `application.base-cost`, `application.additional-cost`, `application.max-per-tool`, `long-arm.block-range-bonus`, `less-damage.*`, `healer.xp-per-durability`, `thunder-strike.chance`, `thunder-strike.damage`, `limits.lumberjack`, `limits.veinminer`, `lumberjack.leaf-radius`, `shop.enabled`, `shop.items.*.enabled`, `nightvision.enabled`, and `tpa.*`. TPA settings include request timeout, warmup, cooldown, cancel-on-move, and sound. The admin GUI saves changes immediately. It does not edit other plugins' configuration files.
 
 ## Build and install
 

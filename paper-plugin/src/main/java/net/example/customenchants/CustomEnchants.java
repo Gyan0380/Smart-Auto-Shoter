@@ -707,12 +707,16 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
         if (event.getEntity() instanceof Player player && event.getBow()!=null
                 && toolTypes(event.getBow()).contains(EnchantType.THUNDER_STRIKE)) {
             thunderProjectiles.add(event.getProjectile().getUniqueId());
+            UUID projectileId=event.getProjectile().getUniqueId();
+            Bukkit.getScheduler().runTaskLater(this,()->thunderProjectiles.remove(projectileId),1200L);
         }
     }
 
     @EventHandler
     public void onThunderProjectileHit(ProjectileHitEvent event) {
-        thunderProjectiles.remove(event.getEntity().getUniqueId());
+        UUID projectileId=event.getEntity().getUniqueId();
+        // Keep the marker briefly in case the damage event is dispatched after the hit event.
+        Bukkit.getScheduler().runTaskLater(this,()->thunderProjectiles.remove(projectileId),2L);
     }
 
     @EventHandler(ignoreCancelled=true)

@@ -3,11 +3,8 @@ package net.gyan0380.villagertradereroller;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
@@ -18,14 +15,13 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.EnchantmentStorageMeta;
+import org.bukkit.inventory.MerchantRecipe;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.RayTraceResult;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,14 +32,12 @@ public final class VillagerTradeReroller extends JavaPlugin implements Listener 
     private static final int PAGE_SIZE = 45;
     private final Map<UUID, BukkitTask> activeTasks = new HashMap<>();
     private final Map<UUID, Integer> attempts = new HashMap<>();
-    private final List<EnchantTarget> targets = new ArrayList<>();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        loadTargets();
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("Villager Trade Reroller enabled with " + targets.size() + " enchantment/level choices.");
+        getLogger().info("Villager Trade Reroller enabled for all supported villager professions.");
     }
 
     @Override
@@ -51,17 +45,6 @@ public final class VillagerTradeReroller extends JavaPlugin implements Listener 
         activeTasks.values().forEach(BukkitTask::cancel);
         activeTasks.clear();
         attempts.clear();
-    }
-
-    private void loadTargets() {
-        targets.clear();
-        for (Enchantment enchantment : Registry.ENCHANTMENT) {
-            for (int level = 1; level <= enchantment.getMaxLevel(); level++) {
-                targets.add(new EnchantTarget(enchantment, level));
-            }
-        }
-        targets.sort(Comparator.comparing((EnchantTarget t) -> t.enchantment().getKey().getKey())
-                .thenComparingInt(EnchantTarget::level));
     }
 
     @Override
@@ -92,45 +75,79 @@ public final class VillagerTradeReroller extends JavaPlugin implements Listener 
             player.sendMessage(ChatColor.RED + "Look directly at a villager within 6 blocks, then run /traderoll.");
             return true;
         }
-        if (villager.getVillagerExperience() > 0 || villager.getRecipes().stream().anyMatch(recipe -> recipe.getUses() > 0)) {
-            player.sendMessage(ChatColor.RED + "This villager has already been traded with. Its trades cannot be safely rerolled.");
+        if (!isUntraded(villager)) {
+            player.sendMessage(ChatColor.RED + "This villager has already been traded with. Its trades are locked.");
             return true;
         }
-        if (getConfig().getBoolean("set-librarian-profession", true)) {
-            villager.setProfession(Villager.Profession.LIBRARIAN);
-        } else if (villager.getProfession() != Villager.Profession.LIBRARIAN) {
-            player.sendMessage(ChatColor.RED + "This villager is not a librarian. Enable set-librarian-profession in config.yml.");
+        if (villager.getProfession() == Villager.Profession.NONE
+                || villager.getProfession() == Villager.Profession.NITWIT) {
+            player.sendMessage(ChatColor.RED + "This villager has no trading profession. Give it a workstation first.");
             return true;
         }
-        openMenu(player, villager, 0);
+
+        if (villager.getRecipes().isEmpty()) villager.resetOffers();
+        if (villager.getRecipes().isEmpty()) {
+            player.sendMessage(ChatColor.RED + "No trades are available for this villager yet.");
+            return true;
+        }
+        openTradeMenu(player, villager, 0);
         return true;
     }
 
-    private void openMenu(Player player, Villager villager, int page) {
-        MenuHolder holder = new MenuHolder(villager.getUniqueId(), page);
+    private boolean isUntraded(Villager villager) {
+        return villager.getVillagerExperience() <= 0
+                && villager.getRecipes().stream().noneMatch(recipe -> recipe.getUses() > 0);
+    }
+
+    private void openTradeMenu(Player player, Villager villager, int page) {
+        List<MerchantRecipe> recipes = villager.getRecipes();
+        MenuHolder holder = new MenuHolder(MenuType.TRADES, villager.getUniqueId(), page);
+        int pages = Math.max(1, (recipes.size() + PAGE_SIZE - 1) / PAGE_SIZE);
         Inventory inventory = Bukkit.createInventory(holder, MENU_SIZE,
-                ChatColor.DARK_GREEN + "Choose Enchanted Book " + (page + 1) + "/" + Math.max(1, (targets.size() + PAGE_SIZE - 1) / PAGE_SIZE));
+                ChatColor.DARK_GREEN + villager.getProfession().name() + " Trades " + (page + 1) + "/" + pages);
         holder.setInventory(inventory);
 
         int start = page * PAGE_SIZE;
-        int end = Math.min(start + PAGE_SIZE, targets.size());
+        int end = Math.min(start + PAGE_SIZE, recipes.size());
         for (int index = start; index < end; index++) {
-            EnchantTarget target = targets.get(index);
-            ItemStack icon = new ItemStack(Material.ENCHANTED_BOOK);
-            EnchantmentStorageMeta meta = (EnchantmentStorageMeta) icon.getItemMeta();
-            meta.addStoredEnchant(target.enchantment(), target.level(), true);
-            meta.setDisplayName(ChatColor.GREEN + pretty(target.enchantment()) + " " + roman(target.level()));
-            List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.GRAY + "Click to search for this exact book trade");
-            lore.add(ChatColor.DARK_GRAY + target.enchantment().getKey().toString());
-            meta.setLore(lore);
-            icon.setItemMeta(meta);
+            MerchantRecipe recipe = recipes.get(index);
+            ItemStack icon = recipe.getResult().clone();
+            ItemMeta meta = icon.getItemMeta();
+            if (meta != null) {
+                meta.setDisplayName(ChatColor.GREEN + readableName(icon.getType()));
+                List<String> lore = new ArrayList<>();
+                lore.add(ChatColor.GRAY + "Trade " + (index + 1));
+                lore.add(ChatColor.GRAY + "Uses: " + recipe.getUses() + "/" + recipe.getMaxUses());
+                lore.add(ChatColor.YELLOW + "Click to select this trade");
+                meta.setLore(lore);
+                icon.setItemMeta(meta);
+            }
             inventory.setItem(index - start, icon);
-            holder.targetsBySlot.put(index - start, target);
+            holder.tradeTargets.put(index - start, recipe.getResult().clone());
         }
         if (page > 0) inventory.setItem(45, named(Material.ARROW, ChatColor.YELLOW + "Previous page"));
         inventory.setItem(49, named(Material.BARRIER, ChatColor.RED + "Cancel"));
-        if (end < targets.size()) inventory.setItem(53, named(Material.ARROW, ChatColor.YELLOW + "Next page"));
+        if (end < recipes.size()) inventory.setItem(53, named(Material.ARROW, ChatColor.YELLOW + "Next page"));
+        player.openInventory(inventory);
+    }
+
+    private void openConfirmMenu(Player player, UUID villagerId, ItemStack target) {
+        MenuHolder holder = new MenuHolder(MenuType.CONFIRM, villagerId, 0);
+        holder.target = target.clone();
+        Inventory inventory = Bukkit.createInventory(holder, 27, ChatColor.DARK_GREEN + "Confirm Trade Search");
+        holder.setInventory(inventory);
+
+        inventory.setItem(11, named(Material.LIME_CONCRETE, ChatColor.GREEN + "CONFIRM - Start Reroll"));
+        ItemStack preview = target.clone();
+        ItemMeta meta = preview.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ChatColor.GOLD + "Target trade result");
+            meta.setLore(List.of(ChatColor.GRAY + "The villager will reroll until this result appears.",
+                    ChatColor.GRAY + "Only the result item is matched."));
+            preview.setItemMeta(meta);
+        }
+        inventory.setItem(13, preview);
+        inventory.setItem(15, named(Material.RED_CONCRETE, ChatColor.RED + "Cancel"));
         player.openInventory(inventory);
     }
 
@@ -138,44 +155,65 @@ public final class VillagerTradeReroller extends JavaPlugin implements Listener 
     public void onMenuClick(InventoryClickEvent event) {
         if (!(event.getView().getTopInventory().getHolder() instanceof MenuHolder holder)) return;
         event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player) || event.getClickedInventory() != event.getView().getTopInventory()) return;
+        if (!(event.getWhoClicked() instanceof Player player)
+                || event.getClickedInventory() != event.getView().getTopInventory()) return;
 
         int slot = event.getSlot();
+        if (holder.type == MenuType.CONFIRM) {
+            if (slot == 15) {
+                player.closeInventory();
+                player.sendMessage(ChatColor.YELLOW + "Trade search cancelled.");
+                return;
+            }
+            if (slot == 11) {
+                Villager villager = getVillager(holder.villagerId);
+                if (villager == null || !villager.isValid() || !isUntraded(villager)) {
+                    player.closeInventory();
+                    player.sendMessage(ChatColor.RED + "The villager is no longer available or has been traded with.");
+                    return;
+                }
+                ItemStack target = holder.target.clone();
+                player.closeInventory();
+                startReroll(player, villager, target);
+            }
+            return;
+        }
+
         if (slot == 49) {
             player.closeInventory();
-            player.sendMessage(ChatColor.YELLOW + "Trade search cancelled.");
+            player.sendMessage(ChatColor.YELLOW + "Trade selection cancelled.");
             return;
         }
         if (slot == 45 && holder.page > 0) {
-            openMenu(player, getVillager(holder.villagerId), holder.page - 1);
+            Villager villager = getVillager(holder.villagerId);
+            if (villager != null) openTradeMenu(player, villager, holder.page - 1);
             return;
         }
-        if (slot == 53 && (holder.page + 1) * PAGE_SIZE < targets.size()) {
-            openMenu(player, getVillager(holder.villagerId), holder.page + 1);
+        if (slot == 53) {
+            Villager villager = getVillager(holder.villagerId);
+            if (villager != null && (holder.page + 1) * PAGE_SIZE < villager.getRecipes().size()) {
+                openTradeMenu(player, villager, holder.page + 1);
+            }
             return;
         }
-        EnchantTarget target = holder.targetsBySlot.get(slot);
+
+        ItemStack target = holder.tradeTargets.get(slot);
         Villager villager = getVillager(holder.villagerId);
-        if (target == null || villager == null || !villager.isValid()) {
+        if (target == null || villager == null || !villager.isValid() || !isUntraded(villager)) {
             player.closeInventory();
             player.sendMessage(ChatColor.RED + "The selected villager is no longer available.");
             return;
         }
-        if (villager.getVillagerExperience() > 0 || villager.getRecipes().stream().anyMatch(recipe -> recipe.getUses() > 0)) {
-            player.closeInventory();
-            player.sendMessage(ChatColor.RED + "This villager has been traded with; search stopped for safety.");
-            return;
-        }
-        player.closeInventory();
-        startReroll(player, villager, target);
+        openConfirmMenu(player, holder.villagerId, target);
     }
 
-    private void startReroll(Player player, Villager villager, EnchantTarget target) {
+    private void startReroll(Player player, Villager villager, ItemStack target) {
         stopTask(player.getUniqueId());
         UUID playerId = player.getUniqueId();
         UUID villagerId = villager.getUniqueId();
         attempts.put(playerId, 0);
-        player.sendMessage(ChatColor.GOLD + "Searching for " + pretty(target.enchantment()) + " " + roman(target.level()) + "...");
+        player.sendMessage(ChatColor.GOLD + "Searching this villager's " + villager.getProfession().name()
+                + " trades for " + readableName(target.getType()) + "...");
 
         long delay = Math.max(1L, getConfig().getLong("reroll-delay-ticks", 2L));
         int maxAttempts = Math.max(1, getConfig().getInt("max-attempts", 2000));
@@ -186,7 +224,7 @@ public final class VillagerTradeReroller extends JavaPlugin implements Listener 
                 stopTask(playerId);
                 return;
             }
-            if (current.getVillagerExperience() > 0 || current.getRecipes().stream().anyMatch(recipe -> recipe.getUses() > 0)) {
+            if (!isUntraded(current)) {
                 online.sendMessage(ChatColor.RED + "Search stopped: the villager has been traded with.");
                 stopTask(playerId);
                 return;
@@ -197,9 +235,10 @@ public final class VillagerTradeReroller extends JavaPlugin implements Listener 
             int extra = Math.max(0, getConfig().getInt("additional-trades", 0));
             if (extra > 0) current.addTrades(extra);
 
-            boolean found = current.getRecipes().stream().anyMatch(recipe -> matches(recipe.getResult(), target));
+            boolean found = current.getRecipes().stream()
+                    .anyMatch(recipe -> recipe.getResult().isSimilar(target));
             if (found) {
-                online.sendMessage(ChatColor.GREEN + "FOUND! " + pretty(target.enchantment()) + " " + roman(target.level())
+                online.sendMessage(ChatColor.GREEN + "FOUND! " + readableName(target.getType())
                         + " is now in this villager's offers. Trade once to lock the offers.");
                 current.shakeHead();
                 stopTask(playerId);
@@ -213,12 +252,6 @@ public final class VillagerTradeReroller extends JavaPlugin implements Listener 
             }
         }, 1L, delay);
         activeTasks.put(playerId, task);
-    }
-
-    private boolean matches(ItemStack result, EnchantTarget target) {
-        if (result == null || result.getType() != Material.ENCHANTED_BOOK) return false;
-        if (!(result.getItemMeta() instanceof EnchantmentStorageMeta meta)) return false;
-        return meta.getStoredEnchantLevel(target.enchantment()) == target.level();
     }
 
     private Villager getVillager(UUID id) {
@@ -245,9 +278,8 @@ public final class VillagerTradeReroller extends JavaPlugin implements Listener 
         return item;
     }
 
-    private String pretty(Enchantment enchantment) {
-        String key = enchantment.getKey().getKey().replace('_', ' ');
-        String[] words = key.split(" ");
+    private String readableName(Material material) {
+        String[] words = material.name().toLowerCase().split("_");
         StringBuilder result = new StringBuilder();
         for (String word : words) {
             if (!result.isEmpty()) result.append(' ');
@@ -256,20 +288,18 @@ public final class VillagerTradeReroller extends JavaPlugin implements Listener 
         return result.toString();
     }
 
-    private String roman(int number) {
-        String[] numerals = {"", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"};
-        return number > 0 && number < numerals.length ? numerals[number] : Integer.toString(number);
-    }
-
-    private record EnchantTarget(Enchantment enchantment, int level) {}
+    private enum MenuType { TRADES, CONFIRM }
 
     private static final class MenuHolder implements InventoryHolder {
+        private final MenuType type;
         private final UUID villagerId;
         private final int page;
-        private final Map<Integer, EnchantTarget> targetsBySlot = new HashMap<>();
+        private final Map<Integer, ItemStack> tradeTargets = new HashMap<>();
+        private ItemStack target;
         private Inventory inventory;
 
-        private MenuHolder(UUID villagerId, int page) {
+        private MenuHolder(MenuType type, UUID villagerId, int page) {
+            this.type = type;
             this.villagerId = villagerId;
             this.page = page;
         }

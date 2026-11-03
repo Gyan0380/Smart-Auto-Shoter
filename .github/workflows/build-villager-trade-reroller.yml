@@ -3,13 +3,13 @@ name: Build Villager Trade Reroller
 on:
   push:
     branches:
-      - minecraft-connecter
+      - villager-trade-reroller
     paths:
       - "villager-trade-reroller/**"
       - ".github/workflows/build-villager-trade-reroller.yml"
   pull_request:
     branches:
-      - minecraft-connecter
+      - villager-trade-reroller
     paths:
       - "villager-trade-reroller/**"
       - ".github/workflows/build-villager-trade-reroller.yml"
@@ -36,6 +36,6 @@ jobs:
       - name: Upload plugin JAR
         uses: actions/upload-artifact@v4
         with:
-          name: VillagerTradeReroller-1.0.0
-          path: villager-trade-reroller/build/libs/VillagerTradeReroller-1.0.0.jar
+          name: VillagerTradeReroller-1.1.0
+          path: villager-trade-reroller/build/libs/VillagerTradeReroller-1.1.0.jar
           if-no-files-found: error

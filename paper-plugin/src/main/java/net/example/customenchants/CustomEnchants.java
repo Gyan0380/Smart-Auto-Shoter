@@ -732,23 +732,28 @@ public final class CustomEnchants extends JavaPlugin implements Listener {
             attacker=player;
             weapon=null; // The projectile was checked against its enchanted bow when it was fired.
         }
+
+        // Thunder Strike is for player-vs-player hits only. Merely holding the item
+        // cannot trigger this handler; a real, uncancelled hit event is required.
         if (attacker==null || !attacker.hasPermission("customenchants.use")
-                || !(event.getEntity() instanceof LivingEntity target)
-                || target.getUniqueId().equals(attacker.getUniqueId())
-                || thunderProcessing.contains(target.getUniqueId())) return;
+                || !(event.getEntity() instanceof Player target)
+                || target.getUniqueId().equals(attacker.getUniqueId())) return;
+
         boolean enchanted=weapon==null || toolTypes(weapon).contains(EnchantType.THUNDER_STRIKE);
         if (!enchanted) return;
+
+        // Keep the chance in the 0-100% range. 0.30 means exactly a 30% roll per hit.
         double chance=Math.max(0.0,Math.min(1.0,getConfig().getDouble("thunder-strike.chance",0.30)));
         if (ThreadLocalRandom.current().nextDouble()>=chance) return;
 
-        double damage=Math.max(0.0,Math.min(40.0,getConfig().getDouble("thunder-strike.damage",10.0)));
-        thunderProcessing.add(target.getUniqueId());
-        try {
-            target.getWorld().strikeLightningEffect(target.getLocation());
-            if (damage>0.0 && target.isValid() && !target.isDead()) target.damage(damage,attacker);
-        } finally {
-            thunderProcessing.remove(target.getUniqueId());
-        }
+        double extraDamage=Math.max(0.0,Math.min(40.0,getConfig().getDouble("thunder-strike.damage",10.0)));
+        if (extraDamage<=0.0) return;
+
+        // Add damage to the original hit instead of calling target.damage().
+        // This avoids a second damage event / accidental recursive proc, and lets
+        // Minecraft apply the target's armor and protection normally.
+        event.setDamage(event.getDamage()+extraDamage);
+        target.getWorld().strikeLightningEffect(target.getLocation());
     }
 
     private void updateLongArmRange(Player player) {

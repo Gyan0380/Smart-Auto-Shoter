@@ -1,12 +1,12 @@
 name: VillagerTradeReroller
-version: 1.0.0
+version: 1.1.0
 main: net.gyan0380.villagertradereroller.VillagerTradeReroller
 api-version: '26.1'
-description: Automatically rerolls an untraded librarian until the selected enchanted book trade appears.
+description: Select and confirm current trades for any villager profession, then reroll the selected result.
 author: Gyan0380
 commands:
   traderoll:
-    description: Select a villager and choose an enchanted book trade to search for.
+    description: Select a villager and choose a trade result to reroll for.
     usage: /traderoll [select|stop]
     aliases: [vtr]
 permissions:
